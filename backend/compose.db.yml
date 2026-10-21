@@ -1,0 +1,19 @@
+# Database-only development stack; the full application stack belongs to integration.
+services:
+  db:
+    image: postgres:18.0
+    environment:
+      POSTGRES_DB: alfa
+      POSTGRES_USER: alfa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your shell or .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - alfa_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alfa -d alfa"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  alfa_pgdata:

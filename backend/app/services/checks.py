@@ -26,7 +26,7 @@ def run_checks(db: Session, app: LoanApplication, company: Company, product: Cre
     registry = risk_port.registry_service.check(company.inn, company.legal_name)
     bki = risk_port.bki_service.check(company.inn)
     for kind, result in (('REGISTRY', registry), ('BKI', bki)):
-        db.add(VerificationResult(application_id=app.id, check_type=kind, result=result, passed=bool(result.get('passed', False)), attempt_no=app.version))
+        db.add(VerificationResult(application_id=app.id, check_type=kind, result={'schema_version': 1, **result}, passed=bool(result.get('passed', False)), attempt_no=app.version))
     if not registry.get('passed') or not bki.get('passed'):
         db.add(InformationRequest(application_id=app.id, message='Автопроверка выявила несоответствие. Уточните сведения о компании.', status='OPEN'))
         transition(db, app, Status.NEEDS_INFO, reason='Не все автоматические проверки пройдены')
