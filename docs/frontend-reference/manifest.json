@@ -1,0 +1,149 @@
+{
+  "project": "SMART CREDIT — Graphite Professional",
+  "version": "1.0",
+  "screenCount": 23,
+  "themes": [
+    "dark",
+    "light"
+  ],
+  "screens": [
+    {
+      "number": "01",
+      "slug": "client-dashboard",
+      "title": "Главная предпринимателя",
+      "group": "client"
+    },
+    {
+      "number": "02",
+      "slug": "client-applications",
+      "title": "Список заявок",
+      "group": "client"
+    },
+    {
+      "number": "03",
+      "slug": "client-products",
+      "title": "Кредитные продукты",
+      "group": "client"
+    },
+    {
+      "number": "04",
+      "slug": "application-product",
+      "title": "Заявка — выбор продукта",
+      "group": "wizard"
+    },
+    {
+      "number": "05",
+      "slug": "application-parameters",
+      "title": "Заявка — параметры",
+      "group": "wizard"
+    },
+    {
+      "number": "06",
+      "slug": "application-company",
+      "title": "Заявка — компания",
+      "group": "wizard"
+    },
+    {
+      "number": "07",
+      "slug": "application-review",
+      "title": "Заявка — подтверждение",
+      "group": "wizard"
+    },
+    {
+      "number": "08",
+      "slug": "client-application-detail",
+      "title": "Карточка заявки",
+      "group": "client"
+    },
+    {
+      "number": "09",
+      "slug": "client-needs-info",
+      "title": "Ответ на запрос банка",
+      "group": "client"
+    },
+    {
+      "number": "10",
+      "slug": "client-offer",
+      "title": "Предложение банка",
+      "group": "client"
+    },
+    {
+      "number": "11",
+      "slug": "client-company",
+      "title": "Моя компания",
+      "group": "client"
+    },
+    {
+      "number": "12",
+      "slug": "client-documents",
+      "title": "Документы",
+      "group": "client"
+    },
+    {
+      "number": "13",
+      "slug": "client-news",
+      "title": "Новости",
+      "group": "client"
+    },
+    {
+      "number": "14",
+      "slug": "client-ai-assistant",
+      "title": "AI-помощник",
+      "group": "client"
+    },
+    {
+      "number": "15",
+      "slug": "client-settings",
+      "title": "Настройки оформления",
+      "group": "client"
+    },
+    {
+      "number": "16",
+      "slug": "bank-queue",
+      "title": "Банк — очередь заявок",
+      "group": "bank"
+    },
+    {
+      "number": "17",
+      "slug": "bank-application-data",
+      "title": "Банк — данные заявки",
+      "group": "bank"
+    },
+    {
+      "number": "18",
+      "slug": "bank-risk",
+      "title": "Банк — проверки и скоринг",
+      "group": "bank"
+    },
+    {
+      "number": "19",
+      "slug": "bank-documents",
+      "title": "Банк — документы",
+      "group": "bank"
+    },
+    {
+      "number": "20",
+      "slug": "bank-history",
+      "title": "Банк — журнал событий",
+      "group": "bank"
+    },
+    {
+      "number": "21",
+      "slug": "bank-decision",
+      "title": "Банк — решение",
+      "group": "bank"
+    },
+    {
+      "number": "22",
+      "slug": "bank-request-info",
+      "title": "Банк — запрос уточнений",
+      "group": "bank"
+    },
+    {
+      "number": "23",
+      "slug": "ui-states",
+      "title": "Состояния интерфейса",
+      "group": "system"
+    }
+  ]
+}
