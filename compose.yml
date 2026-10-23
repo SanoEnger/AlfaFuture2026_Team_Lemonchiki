@@ -1,0 +1,80 @@
+name: alfa-smart-credit
+
+x-backend: &backend
+  image: alfa-smart-credit-backend:local
+  build: ./backend
+  environment: &environment
+    DATABASE_URL: postgresql+psycopg://alfa:${POSTGRES_PASSWORD:?Run python scripts/setup_env.py}@db:5432/alfa
+    APP_SECRET_KEY: ${APP_SECRET_KEY:?Run python scripts/setup_env.py}
+    UPLOAD_DIR: /app/storage
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+
+services:
+  db:
+    image: postgres:18.0
+    environment:
+      POSTGRES_DB: alfa
+      POSTGRES_USER: alfa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python scripts/setup_env.py}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U alfa -d alfa]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: [alembic, upgrade, head]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  seed:
+    <<: *backend
+    command: [python, -m, app.seeds, --scenarios]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *backend
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - documents:/app/storage
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, scripts/readiness.py]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  smoke:
+    <<: *backend
+    profiles: [test]
+    command: [python, scripts/smoke.py, --base-url, http://api:8000]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  tests:
+    <<: *backend
+    profiles: [test]
+    environment:
+      <<: *environment
+      DATABASE_TEST_URL: postgresql+psycopg://alfa:${POSTGRES_PASSWORD:?Run python scripts/setup_env.py}@db:5432/alfa
+    command: [python, -m, pytest, -q, -p, "no:cacheprovider", --basetemp, /tmp/alfa-tests]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  documents:
