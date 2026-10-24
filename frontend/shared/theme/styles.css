@@ -427,7 +427,7 @@ svg {
   height: 33px;
   font-size: 12px;
 }
-.demo-label {
+.platform-label {
   font-size: 11px;
   color: var(--muted);
 }
@@ -1566,7 +1566,7 @@ svg {
   .next-step {
     display: none;
   }
-  .demo-label {
+  .platform-label {
     display: none;
   }
   .product-grid,

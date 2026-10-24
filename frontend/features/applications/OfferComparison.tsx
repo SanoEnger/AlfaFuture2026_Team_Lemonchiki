@@ -11,7 +11,7 @@ export function OfferComparison({
     <div className="table-scroll">
       <table className="offer-table">
         <caption className="sr-only">
-          Сравнение запрошенных и предложенных условий. Демонстрационные данные.
+          Сравнение запрошенных и предложенных условий.
         </caption>
         <thead>
           <tr>

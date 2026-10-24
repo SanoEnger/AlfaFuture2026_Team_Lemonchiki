@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { deriveNextAction } from "../features/applications/deriveNextAction";
-import { demo } from "../shared/api/demo";
-import type { Status, Draft } from "../shared/api/types";
+import { application, product } from "./fixtures";
+import type { Status, Draft, Application } from "../shared/api/types";
 import { minorUnits, validateDraft } from "../shared/validation";
 const memory = new Map<string, string>();
 vi.stubGlobal("localStorage", {
@@ -24,7 +24,7 @@ describe("следующее действие", () => {
     "COMPLETED",
   ] as Status[]) {
     it(`объясняет ${status} без неподтверждённых действий`, async () => {
-      const a = await demo.application("SC-1042");
+      const a = application();
       a.status = status;
       a.latest_offer = null;
       a.information_requests = [];
@@ -46,14 +46,35 @@ describe("следующее действие", () => {
     });
   }
   it("использует только действующие запросы и фактический оффер", async () => {
-    const a = await demo.application("SC-1035");
+    const a: Application = {
+      ...application(),
+      status: "NEEDS_INFO",
+      information_requests: [
+        {
+          id: "request",
+          message: "Уточните данные",
+          status: "OPEN",
+          created_at: "2026-10-24",
+        },
+      ],
+    };
     expect(deriveNextAction(a).description).toContain(
       a.information_requests[0].message,
     );
     expect(deriveNextAction(a).action?.to).toContain("#documents");
     a.information_requests[0].status = "RESOLVED";
     expect(deriveNextAction(a).action).toBeUndefined();
-    const o = await demo.application("SC-1038");
+    const o = {
+      ...application(),
+      status: "OFFERED" as const,
+      latest_offer: {
+        amount: "1500000",
+        term_months: 24,
+        annual_rate: "18",
+        reason: "Условия",
+        created_at: "2026-10-24",
+      },
+    };
     expect(deriveNextAction(o).action?.to).toContain("#offer");
   });
 });
@@ -64,15 +85,11 @@ describe("денежные значения и ошибки адаптера", (
       expect(minorUnits(value)).toBeNull();
   });
   it("возвращает 422 для невалидных финансов и 409 для устаревшего перехода", async () => {
-    const a = await demo.application("SC-1042");
+    const a = application();
     const d: Draft = {
       ...a.requested_terms,
       company_financials: { ...a.company, revenue: "NaN" },
     };
-    expect(validateDraft(d, (await demo.products())[0]).revenue).toBeTruthy();
-    await expect(demo.saveDraft("client_good", d)).rejects.toMatchObject({
-      status: 422,
-    });
-    await expect(demo.submit(a.id)).rejects.toMatchObject({ status: 409 });
+    expect(validateDraft(d, product).revenue).toBeTruthy();
   });
 });

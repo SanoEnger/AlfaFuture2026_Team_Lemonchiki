@@ -1,4 +1,4 @@
-import { request, setAccessToken, downloadFile } from "./http";
+import { request, clearCsrf, downloadFile } from "./http";
 import type { ApiSchemas } from "./generated";
 import type {
   Application,
@@ -10,8 +10,8 @@ import type {
   Session,
   Status,
 } from "./types";
-import { products } from "./demo";
-import { DemoError } from "./errors";
+import { products } from "./catalog";
+import { ApiError } from "./errors";
 type WireApplication = ApiSchemas["ApplicationResponse"];
 type Bundle = ApiSchemas["BankApplicationResponse"];
 let current: Session | null = null;
@@ -77,22 +77,23 @@ export async function serverLogin(
   username: string,
   password: string,
 ): Promise<Session> {
-  const reply = await request<ApiSchemas["TokenResponse"]>(
-    "/auth/demo-login",
-    json({ username, password }),
-  );
-  setAccessToken(reply.access_token);
+  await request("/auth/login", json({ email: username, password }));
   return restoreServerSession();
 }
 export async function restoreServerSession(): Promise<Session> {
   try {
     const me = await request<ApiSchemas["CurrentUserResponse"]>("/auth/me");
-    if (!["CLIENT", "BANK_EMPLOYEE"].includes(me.role))
-      throw new DemoError(403, "Роль сервера не поддерживается этим адаптером");
+    if (
+      !["CLIENT", "BANK_EMPLOYEE", "BANK_OFFICER", "BANK_ADMIN"].includes(
+        me.role,
+      )
+    )
+      throw new ApiError(403, "Роль сервера не поддерживается этим адаптером");
     const s: Session = {
       username: me.id,
       role: me.role as Session["role"],
-      displayName: me.username,
+      displayName: me.display_name || me.username,
+      email: me.email || "",
       onboardingComplete: me.onboarding_complete,
       mode: "api",
       issuedAt: Date.now(),
@@ -115,16 +116,47 @@ export async function restoreServerSession(): Promise<Session> {
     current = s;
     return s;
   } catch (e) {
-    setAccessToken(null);
+    clearCsrf();
     throw e;
   }
 }
 export const server = {
+  claim: async (id: string, _actor: Session, version?: number) =>
+    request(
+      "/bank/applications/" + id + "/claim",
+      json({ expected_version: version }),
+    ),
+  assign: async (
+    id: string,
+    _actor: Session,
+    officer: string,
+    version?: number,
+  ) =>
+    request(
+      "/bank/applications/" + id + "/assign",
+      json({ officer_id: officer, expected_version: version }),
+    ),
   products: async (): Promise<Product[]> => products,
   company: async (_owner: string) =>
     company(await request<ApiSchemas["CompanyResponse"]>("/business/me")),
-  updateCompany: async (_owner: string, c: Company) =>
-    company(
+  updateCompany: async (_owner: string, c: Company) => {
+    if (current?.onboardingComplete === false)
+      return company(
+        await request<ApiSchemas["CompanyResponse"]>(
+          "/organizations",
+          json({
+            legal_name: c.legal_name,
+            inn: c.inn,
+            form: c.form,
+            industry: c.industry,
+            revenue: c.revenue,
+            expenses: c.expenses,
+            debt_payment: c.debt_payment,
+            months_active: c.months_active,
+          }),
+        ),
+      );
+    return company(
       await request<ApiSchemas["CompanyResponse"]>("/business/me", {
         method: "PATCH",
         body: JSON.stringify({
@@ -138,7 +170,8 @@ export const server = {
           },
         }),
       }),
-    ),
+    );
+  },
   applications: async (_owner?: string): Promise<Application[]> => {
     const bank = current?.role !== "CLIENT";
     const list = await request<WireApplication[]>(
@@ -153,6 +186,7 @@ export const server = {
       );
       return application(b.application, {
         risk: risk(b.risk),
+        verifications: b.verifications,
         documents: b.documents,
         events: b.events.map((e) => ({
           ...e,
@@ -193,7 +227,9 @@ export const server = {
       amount: draft.amount,
       term_months: draft.term_months,
       purpose: draft.purpose,
+      comment: draft.comment,
       company_financials: draft.company_financials,
+      ...(id && _version ? { expected_version: _version } : {}),
     };
     return application(
       await request<WireApplication>(
@@ -211,22 +247,30 @@ export const server = {
       `/applications/${encodeURIComponent(id)}/resubmit`,
       json(message.trim() ? { response_message: message } : {}),
     ),
-  requestInfo: async (id: string, message: string) =>
+  requestInfo: async (
+    id: string,
+    message: string,
+    _actor?: Session,
+    version?: number,
+  ) =>
     request(
       `/bank/applications/${encodeURIComponent(id)}/request-info`,
-      json({ message }),
+      json({ message, expected_version: version }),
     ),
   decision: async (
     id: string,
     type: "OFFERED" | "REJECTED",
     reason: string,
     offer?: { amount: string; term_months: number; annual_rate: string },
+    _actor?: Session,
+    version?: number,
   ) =>
     request(
       `/bank/applications/${encodeURIComponent(id)}/decision`,
       json({
         type,
         reason,
+        expected_version: version,
         ...(offer
           ? {
               offered_amount: offer.amount,

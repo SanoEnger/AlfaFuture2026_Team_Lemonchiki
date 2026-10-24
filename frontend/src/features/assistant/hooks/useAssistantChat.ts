@@ -97,7 +97,7 @@ export function useAssistantChat(
       if (controller.signal.aborted) return;
       update(key, id, {
         status: "error",
-        text: "Не удалось прочитать локальные демоданные. Проверьте их доступность и повторите запрос.",
+        text: "Не удалось получить данные с сервера. Проверьте их доступность и повторите запрос.",
       });
       setAnnouncement(
         "Не удалось подготовить ответ. Доступна повторная попытка.",

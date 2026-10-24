@@ -33,25 +33,30 @@ export function Administration() {
   } | null>(null);
   const q = useQuery({
     queryKey: ["administration", session?.username],
-    queryFn: async () => ({
-      staff: identity.staff(),
-      invitations: identity.invitations(),
-      audit: identity.audit(),
-    }),
+    queryFn: async () => {
+      const [staff, invitations, audit] = await Promise.all([
+        identity.staff(),
+        identity.invitations(),
+        identity.audit(),
+      ]);
+      return { staff, invitations, audit };
+    },
   });
   const mutation = useMutation({
     mutationFn: async () => {
       if (confirm) {
-        if (confirm.type === "revoke") identity.revoke(session!, confirm.id);
-        else identity.suspend(session!, confirm.id, confirm.type === "suspend");
+        if (confirm.type === "revoke")
+          await identity.revoke(session!, confirm.id);
+        else
+          await identity.suspend(
+            session!,
+            confirm.id,
+            confirm.type === "suspend",
+          );
       } else await identity.invite(session!, email);
     },
     onSuccess: async () => {
-      setFeedback(
-        confirm
-          ? "Изменение сохранено"
-          : "Приглашение создано в демонстрационной почте",
-      );
+      setFeedback(confirm ? "Изменение сохранено" : "Приглашение отправлено");
       setConfirm(null);
       setInvite(false);
       setEmail("");
@@ -102,9 +107,9 @@ export function Administration() {
         </Link>
       </nav>
       <p className="muted">
-        Демонстрация управления доступом. Администратор не принимает кредитные
-        решения. Блокировка отзывает локальные сеансы; назначения сохраняются
-        для переназначения.
+        Управление доступом. Администратор не принимает кредитные решения.
+        Блокировка отзывает действующие сеансы; назначения сохраняются для
+        переназначения.
       </p>
       {feedback && (
         <p className="success-text" role="status">
@@ -140,7 +145,9 @@ export function Administration() {
                             <small>{u.email}</small>
                           </td>
                           <td>
-                            Сотрудник банка
+                            {u.role === "BANK_ADMIN"
+                              ? "Администратор"
+                              : "Сотрудник банка"}
                             <small>
                               {u.status === "ACTIVE"
                                 ? "Активен"
@@ -158,6 +165,7 @@ export function Administration() {
                           <td>
                             <Button
                               variant="default"
+                              disabled={u.role === "BANK_ADMIN"}
                               onClick={() => {
                                 mutation.reset();
                                 setConfirm({

@@ -5,9 +5,8 @@ import {
   useLocation,
 } from "react-router-dom";
 import { useSession } from "./session";
-import { DemoLogin } from "./Login";
 import { ServerLogin } from "../features/auth/ServerLogin";
-import { AuthPage, LoginPage, DemoMailbox } from "../features/auth/AuthPages";
+import { AuthPage, LoginPage } from "../features/auth/AuthPages";
 import { Onboarding } from "../features/company/CompanyEditor";
 import { Administration } from "../features/bank/Administration";
 import { sessionHome } from "../shared/api/identity";
@@ -53,7 +52,7 @@ export function Routes() {
   return (
     <RouterRoutes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/demo-login" element={<DemoLogin />} />
+      <Route path="/demo-login" element={<Navigate to="/login" replace />} />
       <Route path="/server-login" element={<ServerLogin />} />
       <Route
         path="/register"
@@ -75,7 +74,7 @@ export function Routes() {
         path="/accept-invitation"
         element={<AuthPage key="invitation" mode="invitation" />}
       />
-      <Route path="/demo-mailbox" element={<DemoMailbox />} />
+      <Route path="/demo-mailbox" element={<Navigate to="/login" replace />} />
       <Route path="/client" element={<Guard />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="onboarding" element={<Onboarding />} />

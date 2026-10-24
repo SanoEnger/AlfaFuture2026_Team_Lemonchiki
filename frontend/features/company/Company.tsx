@@ -4,7 +4,7 @@ import { Button, Modal } from "@mantine/core";
 import { CompanyEditor } from "./CompanyEditor";
 import { Building2, BadgeCheck } from "lucide-react";
 import { useSession } from "../../app/session";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import { industryName, money } from "../../shared/format";
 import {
   PageTitle,
@@ -27,7 +27,7 @@ export function CompanyInfo({ company: c }: { company: CompanyData }) {
           </div>
           <span className="status status-COMPLETED">
             <BadgeCheck size={14} />
-            Демо-компания
+            Профиль компании
           </span>
         </div>
         <hr />
@@ -67,8 +67,8 @@ export function CompanyInfo({ company: c }: { company: CompanyData }) {
         />
         <hr />
         <p className="muted">
-          Данные можно уточнить при создании заявки. В прототипе используются
-          только синтетические сведения.
+          Данные можно уточнить при создании заявки. Данные отправленных заявок
+          сохраняются отдельно.
         </p>
       </Panel>
     </>
@@ -79,7 +79,7 @@ export function Company() {
   const { session } = useSession();
   const q = useQuery({
     queryKey: ["company", session?.username],
-    queryFn: () => demo.company(session!.username),
+    queryFn: () => data.company(session!.username),
   });
   return (
     <>

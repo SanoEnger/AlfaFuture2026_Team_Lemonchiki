@@ -1,7 +1,9 @@
-"""Build, test and verify persistence of the local synthetic demo."""
+"""Verify the application stack without creating working accounts or applications."""
 from pathlib import Path
+import json
 import subprocess
 import sys
+from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -11,27 +13,17 @@ def run(*args):
 
 
 def main():
-    try:
-        subprocess.run(['docker', 'info', '--format', '{{.ServerVersion}}'],
-                       cwd=ROOT, check=True, timeout=30, stdout=subprocess.DEVNULL)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        raise SystemExit('Docker Engine недоступен. Запустите исправный Docker Desktop с Linux containers и повторите проверку.')
     run(sys.executable, 'scripts/setup_env.py')
     run('docker', 'compose', 'up', '--build', '-d', '--wait')
-    run('docker', 'compose', 'run', '--rm', 'tests')
-    state = ROOT / '.local' / 'smoke-state.json'
-    smoke = (sys.executable, 'backend/scripts/smoke.py', '--state', str(state))
-    # API_PORT is read through Compose so existing shell overrides are respected.
-    config = subprocess.check_output(['docker', 'compose', 'config', '--format', 'json'], cwd=ROOT)
-    import json
-    api = json.loads(config)['services']['api']
-    port = api['ports'][0]['published']
-    smoke += ('--base-url', f'http://127.0.0.1:{port}')
-    run(*smoke)
-    run('docker', 'compose', 'restart', 'db', 'api')
-    run('docker', 'compose', 'up', '-d', '--wait')
-    run(*smoke, '--verify-only')
-    print('PASS: stack tests, HTTP scenarios and persistence after restart')
+    run('docker', 'compose', '--profile', 'test', 'run', '--rm', 'tests')
+    config = json.loads(subprocess.check_output(
+        ['docker', 'compose', 'config', '--format', 'json'], cwd=ROOT))
+    for service, path in (('api', '/health'), ('frontend', '/')):
+        port = config['services'][service]['ports'][0]['published']
+        with urlopen(f'http://127.0.0.1:{port}{path}', timeout=10) as reply:
+            if reply.status != 200:
+                raise RuntimeError(f'{service} is not ready')
+    print('PASS: build, isolated tests and service health')
 
 
 if __name__ == '__main__':

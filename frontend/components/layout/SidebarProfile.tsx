@@ -26,7 +26,7 @@ export function SidebarProfile({
             {profile.bank ? (
               <ShieldCheck size={20} strokeWidth={1.8} aria-hidden="true" />
             ) : (
-              "А"
+              profile.name.trim().slice(0, 1).toUpperCase() || "П"
             )}
           </span>
           <div className="sidebar-copy rail-profile-copy">

@@ -4,9 +4,9 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useSession } from "../../app/session";
 import { identity, sessionHome } from "../../shared/api/identity";
 import { ErrorMessage } from "../../components/ui/common";
+import { Brand } from "../../components/ui/Brand";
+import { brand } from "../../shared/brand";
 import { date } from "../../shared/format";
-import { setDataMode } from "../../shared/api/data";
-
 export function AuthLayout({
   title,
   children,
@@ -18,36 +18,18 @@ export function AuthLayout({
     <main className="login auth-page">
       <div className="login-intro">
         <Link className="brand" to="/login">
-          <b>а</b>
-          <div>
-            альфа<small>БИЗНЕС · ДЕМО</small>
-          </div>
+          <Brand />
         </Link>
         <div>
-          <span className="eyebrow">SMART CREDIT</span>
-          <h1>
-            Кабинет для
-            <br />
-            вашего бизнеса
-          </h1>
+          <h1>{brand.name}</h1>
+          <p>{brand.tagline}</p>
           <p>Заявки, документы и решения в одном месте.</p>
         </div>
-        <span className="muted">
-          Учебный проект · Только синтетические данные
-        </span>
+        <span className="muted">Ваш путь к финансированию бизнеса</span>
       </div>
       <section className="login-form panel">
         <h2>{title}</h2>
-        <Alert color="gray" className="auth-demo-notice">
-          Автономный деморежим. Серверная авторизация и отправка писем не
-          подключены. Используйте вымышленные данные и отдельный тестовый
-          пароль.
-        </Alert>
         {children}
-        <div className="auth-links">
-          <Link to="/demo-mailbox">Демонстрационная почта</Link>
-          <Link to="/demo-login">Готовые демосценарии</Link>
-        </div>
       </section>
     </main>
   );
@@ -71,7 +53,6 @@ export function LoginPage() {
           setBusy(true);
           setError(null);
           try {
-            setDataMode("demo");
             const s = await identity.login(email, password);
             setSession(s);
             navigate(sessionHome(s), { replace: true });
@@ -84,8 +65,7 @@ export function LoginPage() {
         }}
       >
         <TextInput
-          label="Email"
-          type="email"
+          label="Email или логин"
           autoComplete="username"
           required
           value={email}
@@ -99,27 +79,26 @@ export function LoginPage() {
           onChange={(e) => setPassword(e.currentTarget.value)}
         />
         <ErrorMessage error={error} />
-        <Button type="submit" fullWidth loading={busy}>
+        <Button fullWidth type="submit" loading={busy}>
           Войти
         </Button>
         <div className="auth-links">
           <Link to="/register">Создать кабинет</Link>
           <Link to="/forgot-password">Забыли пароль?</Link>
-          <Link to="/server-login">Вход через сервер проекта</Link>
         </div>
       </form>
     </AuthLayout>
   );
 }
-type AuthMode = "register" | "verify" | "forgot" | "reset" | "invitation";
-const titles: Record<AuthMode, string> = {
+type Mode = "register" | "verify" | "forgot" | "reset" | "invitation";
+const titles: Record<Mode, string> = {
   register: "Создать кабинет",
   verify: "Подтверждение email",
   forgot: "Восстановить пароль",
   reset: "Новый пароль",
   invitation: "Активация сотрудника",
 };
-export function AuthPage({ mode }: { mode: AuthMode }) {
+export function AuthPage({ mode }: { mode: Mode }) {
   const [params, setParams] = useSearchParams();
   const token = params.get("token") || "";
   const [name, setName] = useState("");
@@ -137,7 +116,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   } | null>(null);
   useEffect(() => {
     let active = true;
-    if (mode === "invitation")
+    if (mode === "invitation" && token && !done)
       identity
         .invitation(token)
         .then((i) => {
@@ -149,7 +128,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     return () => {
       active = false;
     };
-  }, [mode, token]);
+  }, [mode, token, done]);
   const hasPassword = ["register", "reset", "invitation"].includes(mode);
   async function submit() {
     if (lock.current) return;
@@ -180,9 +159,9 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         <div role="status">
           <h3>
             {mode === "register"
-              ? "Проверьте демонстрационную почту"
+              ? "Проверьте почту"
               : mode === "forgot"
-                ? "Если аккаунт существует, инструкция подготовлена"
+                ? "Если аккаунт существует, инструкция отправлена"
                 : mode === "verify"
                   ? "Email подтверждён"
                   : mode === "invitation"
@@ -191,8 +170,8 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
           </h3>
           <p>
             {mode === "register" || mode === "forgot"
-              ? "Письмо доступно в локальной демонстрационной почте. Внешняя отправка не выполняется."
-              : "Войдите в кабинет с вашими данными."}
+              ? "Откройте письмо и перейдите по ссылке. Проверьте также папку «Спам»."
+              : "Теперь можно войти в кабинет."}
           </p>
           <Link to="/login">Перейти ко входу</Link>
         </div>
@@ -216,8 +195,8 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
           {(mode === "register" || mode === "forgot") && (
             <TextInput
               label="Email"
-              type="email"
               required
+              type="email"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
@@ -235,32 +214,34 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
           {mode === "verify" && (
             <p>
               {token
-                ? "Подтвердите переход по одноразовой ссылке. Срок действия — 1 час."
-                : "Ссылка подтверждения отсутствует. Откройте письмо или запросите новое."}
+                ? "Подтвердите переход по одноразовой ссылке."
+                : "Откройте ссылку из письма или запросите новое письмо."}
             </p>
           )}
           {hasPassword && (
             <>
               <PasswordInput
                 label="Новый пароль"
-                description="От 10 до 128 символов, буквы и цифры"
+                description="10–24 символа, буквы и цифры"
                 required
                 minLength={10}
-                maxLength={128}
-                autoComplete="new-password"
+                maxLength={24}
                 value={password}
+                autoComplete="new-password"
                 onChange={(e) => setPassword(e.currentTarget.value)}
               />
               <PasswordInput
                 label="Повторите пароль"
+                minLength={10}
+                maxLength={24}
                 required
                 autoComplete="new-password"
+                value={confirm}
                 error={
                   confirm && password !== confirm
                     ? "Пароли не совпадают"
                     : undefined
                 }
-                value={confirm}
                 onChange={(e) => setConfirm(e.currentTarget.value)}
               />
             </>
@@ -292,12 +273,16 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (busy) return;
+            setBusy(true);
             try {
               await identity.resend(email);
-              setError(null);
               setResent(true);
+              setError(null);
             } catch (e) {
               setError(e as Error);
+            } finally {
+              setBusy(false);
             }
           }}
         >
@@ -308,46 +293,16 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             value={email}
             onChange={(e) => setEmail(e.currentTarget.value)}
           />
-          <Button type="submit" variant="default">
+          <Button type="submit" variant="default" loading={busy}>
             Запросить новое письмо
           </Button>
           {resent && (
             <p role="status">
-              Если аккаунт ожидает подтверждения, новое письмо доступно в
-              демонстрационной почте.
+              Если аккаунт ожидает подтверждения, письмо отправлено.
             </p>
           )}
         </form>
       )}
-    </AuthLayout>
-  );
-}
-export function DemoMailbox() {
-  const mail = identity.listMail();
-  return (
-    <AuthLayout title="Демонстрационная почта">
-      <p>
-        Локальные тестовые письма этого браузера. Это открытый инструмент
-        деморежима, не реальный почтовый ящик.
-      </p>
-      {mail.length ? (
-        mail.map((m) => (
-          <article className="demo-mail" key={m.id}>
-            <h3>{m.subject}</h3>
-            <p>Кому: {m.to}</p>
-            <small>{date(m.createdAt)}</small>
-            <p>
-              <Link to={m.link}>Открыть письмо: {m.subject}</Link>
-            </p>
-          </article>
-        ))
-      ) : (
-        <p>
-          Писем пока нет. Зарегистрируйте тестовый аккаунт или создайте
-          приглашение.
-        </p>
-      )}
-      <Link to="/login">Войти в кабинет</Link>
     </AuthLayout>
   );
 }

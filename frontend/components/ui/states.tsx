@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Alert, Button, Skeleton } from "@mantine/core";
-import { DemoError } from "../../shared/api/errors";
+import { ApiError } from "../../shared/api/errors";
 export function LoadingState() {
   return (
     <div
@@ -60,12 +60,12 @@ export function ErrorState({
   error: Error;
   onRetry?: () => unknown;
 }) {
-  if (error instanceof DemoError && error.status === 403)
+  if (error instanceof ApiError && error.status === 403)
     return <PermissionDeniedState />;
-  if (error instanceof DemoError && error.status === 404)
+  if (error instanceof ApiError && error.status === 404)
     return <NotFoundState />;
   const title =
-    error instanceof DemoError
+    error instanceof ApiError
       ? {
           401: "Сеанс недоступен",
           409: "Данные заявки изменились",
@@ -77,7 +77,7 @@ export function ErrorState({
       <p>{error.message}</p>
       {onRetry && (
         <Button variant="light" onClick={onRetry}>
-          {error instanceof DemoError && error.status === 409
+          {error instanceof ApiError && error.status === 409
             ? "Обновить данные"
             : "Повторить"}
         </Button>

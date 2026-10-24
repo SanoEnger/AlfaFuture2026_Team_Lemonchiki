@@ -62,10 +62,13 @@ class CreateApplicationRequest(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=16, decimal_places=2)
     term_months: int = Field(gt=0, le=600)
     purpose: str = Field(min_length=1, max_length=100)
+    comment: str = Field(default="", max_length=3000)
     company_financials: FinancialUpdate | None = None
 
 
 class PatchApplicationRequest(BaseModel):
+    comment: str | None = Field(default=None, max_length=3000)
+    expected_version: int | None = Field(default=None, ge=1)
     product_id: UUID | None = None
     amount: Decimal | None = Field(default=None, gt=0, max_digits=16, decimal_places=2)
     term_months: int | None = Field(default=None, gt=0, le=600)
@@ -128,6 +131,7 @@ class CompanyResponse(BaseModel):
 
 
 class TermsResponse(BaseModel):
+    comment: str = ""
     amount: Decimal
     term_months: int
     purpose: str
@@ -150,6 +154,9 @@ class ApplicationResponse(BaseModel):
     updated_at: UTCTimestamp
     next_action: str
     latest_offer: OfferResponse | None = None
+    version: int = 1
+    assigned_officer_id: UUID | None = None
+    assigned_officer_name: str | None = None
 
 
 class SubmitResponse(BaseModel):
@@ -165,6 +172,7 @@ class StatusResponse(BaseModel):
 
 
 class BankDecisionRequest(BaseModel):
+    expected_version: int | None = Field(default=None, ge=1)
     type: str
     offered_amount: Decimal | None = Field(default=None, gt=0, max_digits=16, decimal_places=2)
     offered_term_months: int | None = Field(default=None, gt=0, le=600)
@@ -183,6 +191,7 @@ class BankDecisionRequest(BaseModel):
 
 
 class InfoRequestInput(BaseModel):
+    expected_version: int | None = Field(default=None, ge=1)
     message: str = Field(min_length=1, max_length=3000)
 
 

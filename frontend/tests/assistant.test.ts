@@ -5,15 +5,56 @@ import {
   quickQuestions,
 } from "../src/features/assistant/assistantContent";
 import type { AssistantContext } from "../src/features/assistant/types";
-import { demo, products, readApplications } from "../shared/api/demo";
+import { application, product } from "./fixtures";
+import { data } from "../shared/api/data";
+const products = [product];
+function readApplications() {
+  const a = application();
+  return [
+    a,
+    {
+      ...a,
+      id: "SC-1038",
+      status: "OFFERED" as const,
+      latest_offer: {
+        amount: "1500000",
+        term_months: 24,
+        annual_rate: "18",
+        reason: "",
+        created_at: "2026-10-24",
+      },
+    },
+    {
+      ...a,
+      id: "SC-1035",
+      status: "NEEDS_INFO" as const,
+      information_requests: [
+        {
+          id: "req",
+          message: "Приложите выписку по расчётному счёту",
+          status: "OPEN" as const,
+          created_at: "2026-10-24",
+        },
+      ],
+    },
+  ];
+}
 const memory = new Map<string, string>();
 vi.stubGlobal("localStorage", {
   getItem: (k: string) => memory.get(k) ?? null,
   setItem: (k: string, v: string) => memory.set(k, v),
   removeItem: (k: string) => memory.delete(k),
 });
-beforeEach(() => memory.clear());
-function context(id = "SC-1042"): AssistantContext {
+beforeEach(() => {
+  memory.clear();
+  vi.restoreAllMocks();
+  vi.spyOn(data, "application").mockImplementation(async (id, owner) => {
+    if (owner === "client_risky") throw Error("Заявка не найдена");
+    return readApplications().find((a) => a.id === id)!;
+  });
+  vi.spyOn(data, "products").mockResolvedValue(products);
+});
+function context(id = "case-1042"): AssistantContext {
   const application = readApplications().find((a) => a.id === id)!;
   return {
     type: application.latest_offer ? "offer" : "application",
@@ -25,12 +66,12 @@ function context(id = "SC-1042"): AssistantContext {
 describe("контекстный локальный помощник", () => {
   it("объясняет статус по данным заявки и ссылается на существующую историю", () => {
     const r = buildReply(context(), "Что со статусом?", products);
-    expect(r.text).toContain("1042");
+    expect(r.text).toContain("CASE-104");
     expect(r.text).toContain("На рассмотрении");
     expect(r.text).toContain(
       "Срок решения и причина ожидания в доступных данных не указаны",
     );
-    expect(r.sources[0].to).toBe("/client/applications/SC-1042#history");
+    expect(r.sources[0].to).toBe("/client/applications/case-1042#history");
   });
   it("сравнивает настоящий оффер и не выдумывает причину отсутствующего комментария", () => {
     const c = context("SC-1038");
@@ -70,7 +111,18 @@ describe("контекстный локальный помощник", () => {
   });
   it("перечитывает изменённые данные вместо ответа из устаревшего снимка", async () => {
     const old = context();
-    await demo.requestInfo("SC-1042", "Уточните выручку за октябрь");
+    vi.spyOn(data, "application").mockResolvedValue({
+      ...application(),
+      status: "NEEDS_INFO",
+      information_requests: [
+        {
+          id: "req",
+          message: "Уточните выручку за октябрь",
+          status: "OPEN",
+          created_at: "2026-10-24",
+        },
+      ],
+    });
     const r = await localAssistantService.respond(
       old,
       "Что дальше?",

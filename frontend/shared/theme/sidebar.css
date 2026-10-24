@@ -41,7 +41,7 @@
   align-items: center;
   gap: 14px;
   min-height: 40px;
-  white-space: nowrap;
+  white-space: normal;
   position: relative;
   flex-shrink: 0;
 }
@@ -60,15 +60,15 @@
   flex-shrink: 0;
 }
 .rail-wordmark {
-  font-size: 24px;
+  font-size: 17px;
   font-weight: 600;
   line-height: 1.1;
 }
 .rail-wordmark small {
   display: block;
   margin-top: 5px;
-  font-size: 10px;
-  letter-spacing: 1px;
+  font-size: 9px;
+  letter-spacing: 0;
   color: var(--gg-text-secondary);
 }
 .sidebar-copy {
@@ -289,7 +289,7 @@
   gap: 10px;
 }
 .sidebar-mobile-panel .rail-wordmark {
-  font-size: 20px;
+  font-size: 15px;
 }
 .sidebar-mobile-panel .rail-caption {
   margin-top: 14px;
@@ -301,7 +301,7 @@
   width: 32px;
   padding: 0 6px;
 }
-.topbar .demo-label {
+.topbar .platform-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -309,7 +309,7 @@
   font-size: 12px;
   white-space: nowrap;
 }
-.demo-label::before {
+.platform-label::before {
   content: "";
   width: 5px;
   height: 5px;

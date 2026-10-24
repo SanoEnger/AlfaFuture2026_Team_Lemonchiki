@@ -20,7 +20,7 @@ export function AssistantHeader({
         <Drawer.Title className="credit-ai__title">Помощник</Drawer.Title>
         <p className="credit-ai__subtitle">По кредитным вопросам</p>
       </div>
-      <span className="credit-ai__badge">Демо</span>
+
       <div className="credit-ai__header-actions">
         {canExpand && (
           <button

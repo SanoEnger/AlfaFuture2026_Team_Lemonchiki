@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Modal, SegmentedControl } from "@mantine/core";
 import { ArrowUpRight } from "lucide-react";
 import { useSession } from "../../app/session";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import type { News as NewsItem } from "../../shared/api/types";
 import { date } from "../../shared/format";
 import { PageTitle, Panel, QueryState } from "../../components/ui/common";
@@ -11,7 +11,7 @@ export function NewsCards({ compact = false }: { compact?: boolean }) {
   const { session } = useSession();
   const q = useQuery({
     queryKey: ["news", session?.username],
-    queryFn: () => demo.news(session!.username),
+    queryFn: () => data.news(session!.username),
   });
   const [selected, setSelected] = useState<NewsItem | null>(null);
   const [filter, setFilter] = useState("Все");
@@ -48,7 +48,7 @@ export function NewsCards({ compact = false }: { compact?: boolean }) {
       <Modal
         opened={!!selected}
         onClose={() => setSelected(null)}
-        title="Демо-материал"
+        title="Материал для бизнеса"
         size="lg"
         centered
       >
@@ -61,9 +61,7 @@ export function NewsCards({ compact = false }: { compact?: boolean }) {
             {selected.body.split("\n\n").map((p) => (
               <p key={p}>{p}</p>
             ))}
-            <p className="muted">
-              Синтетический материал для демонстрации персональной ленты.
-            </p>
+            <p className="muted">Материал из ленты платформы.</p>
           </article>
         )}
       </Modal>
@@ -77,9 +75,7 @@ export function News() {
         title="Новости для вашего бизнеса"
         subtitle="Персональная подборка по отрасли и задачам компании"
       />
-      <div className="notice">
-        Демо-контент · Все публикации созданы для демонстрации
-      </div>
+      <div className="notice">Полезные материалы для развития бизнеса</div>
       <NewsCards />
     </>
   );

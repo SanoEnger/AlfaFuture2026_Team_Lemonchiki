@@ -17,6 +17,8 @@ from app.auth import hash_password
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
+    monkeypatch.setenv('VERIFICATION_PROVIDER', 'fixtures')
+    monkeypatch.setenv('VERIFICATION_PROVIDER', 'fixtures')
     monkeypatch.setenv('UPLOAD_DIR', str(tmp_path))
     engine = create_engine('sqlite+pysqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)  # tests only: never create_all in production.

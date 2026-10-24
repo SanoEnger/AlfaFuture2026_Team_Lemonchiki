@@ -29,6 +29,7 @@ def transition(db: Session, app: LoanApplication, status: Status, *, actor_id: U
     if status not in ALLOWED.get(current, set()):
         raise ApiError('INVALID_TRANSITION', f'Переход {current} → {status} недопустим', 409)
     app.status = status
+    app.revision = (app.revision or 1) + 1
     app.updated_at = datetime.now(timezone.utc)
     append_event(db, app, current, status, reason, actor_id)
 
@@ -42,7 +43,7 @@ def next_action(status: str) -> str:
         'UNDER_REVIEW': 'Ожидайте решения сотрудника банка',
         'OFFERED': 'Примите или отклоните предложенные условия',
         'REJECTED': 'Банк отказал в выдаче кредита',
-        'ACCEPTED': 'Имитируется оформление кредита',
+        'ACCEPTED': 'Завершите оформление заявки',
         'DECLINED': 'Вы отклонили предложение',
-        'COMPLETED': 'Демонстрационное оформление завершено',
+        'COMPLETED': 'Оформление завершено',
     }[status]

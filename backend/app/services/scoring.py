@@ -61,9 +61,9 @@ class ScoringService:
         score = financial + debt + age + history
         risk = 'LOW' if score >= 75 else 'MEDIUM' if score >= 50 else 'HIGH'
         recommendation = {
-            'LOW': 'Низкий демонстрационный риск. Сотруднику проверить условия и принять решение.',
-            'MEDIUM': 'Средний демонстрационный риск. Рассмотреть уточнение данных или встречные условия.',
-            'HIGH': 'Высокий демонстрационный риск. Требуется углублённое ручное рассмотрение.',
+            'LOW': 'Низкий расчётный риск. Сотруднику проверить условия и принять решение.',
+            'MEDIUM': 'Средний расчётный риск. Рассмотреть уточнение данных или встречные условия.',
+            'HIGH': 'Высокий расчётный риск. Требуется углублённое ручное рассмотрение.',
         }[risk]
         return {'score': score, 'risk_level': risk, 'factors': factors,
                 'recommendation': recommendation, 'rules_version': self.RULES_VERSION}

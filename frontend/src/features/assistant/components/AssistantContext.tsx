@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { productName } from "../../../../shared/api/demo";
+import { productName } from "../../../../shared/api/catalog";
 import { money, shortId, statuses } from "../../../../shared/format";
 import type { AssistantContext as Context } from "../types";
 export function AssistantContext({
@@ -55,7 +55,7 @@ export function AssistantContext({
       ) : error ? (
         <div className="credit-ai__context-error">
           <p className="credit-ai__context-title">Контекст недоступен</p>
-          <p>Заявка не найдена или демоданные временно недоступны.</p>
+          <p>Заявка не найдена или данные временно недоступны.</p>
           <button
             className="credit-ai__retry"
             onClick={onRefresh}

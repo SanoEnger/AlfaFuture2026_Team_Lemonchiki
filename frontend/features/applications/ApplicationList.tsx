@@ -5,8 +5,8 @@ import { identity } from "../../shared/api/identity";
 import { Plus, Search, ArrowUpDown, ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../../app/session";
-import { productName, products } from "../../shared/api/demo";
-import { data as demo } from "../../shared/api/data";
+import { productName, products } from "../../shared/api/catalog";
+import { data } from "../../shared/api/data";
 import { date, money, shortId, statuses } from "../../shared/format";
 import {
   Empty,
@@ -27,7 +27,7 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
         : "Очередь заявок";
   const q = useQuery({
     queryKey: ["applications", bank ? "bank" : session?.username],
-    queryFn: () => demo.applications(bank ? undefined : session!.username),
+    queryFn: () => data.applications(bank ? undefined : session!.username),
   });
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string | null>("");
@@ -223,15 +223,16 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                       )}
                       {bank && (
                         <td data-label="Ответственный">
-                          {a.assigned_officer_id
-                            ? identity.user(a.assigned_officer_id)
-                                ?.displayName ||
-                              (a.assigned_officer_id === "banker"
-                                ? "Сотрудник банка"
-                                : a.assigned_officer_id === "banker_two"
-                                  ? "Второй сотрудник"
-                                  : a.assigned_officer_id)
-                            : "Не назначен"}
+                          {a.assigned_officer_name ||
+                            (a.assigned_officer_id
+                              ? identity.user(a.assigned_officer_id)
+                                  ?.displayName ||
+                                (a.assigned_officer_id === "banker"
+                                  ? "Сотрудник банка"
+                                  : a.assigned_officer_id === "banker_two"
+                                    ? "Второй сотрудник"
+                                    : a.assigned_officer_id)
+                              : "Не назначен")}
                         </td>
                       )}
                       <td data-label="Обновлена">{date(a.updated_at)}</td>

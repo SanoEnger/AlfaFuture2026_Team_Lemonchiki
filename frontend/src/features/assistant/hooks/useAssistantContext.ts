@@ -1,7 +1,7 @@
 import { matchPath, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "../../../../app/session";
-import { data as demo } from "../../../../shared/api/data";
+import { data } from "../../../../shared/api/data";
 import type { AssistantContext } from "../types";
 
 export function useAssistantContext(enabled: boolean) {
@@ -17,17 +17,17 @@ export function useAssistantContext(enabled: boolean) {
   const productId = !applicationId ? params.get("product") : null;
   const applicationQuery = useQuery({
     queryKey: ["application", applicationId, owner],
-    queryFn: () => demo.application(applicationId!, owner),
+    queryFn: () => data.application(applicationId!, owner),
     enabled: !!allowed && !!applicationId,
   });
   const listQuery = useQuery({
     queryKey: ["applications", owner],
-    queryFn: () => demo.applications(owner),
+    queryFn: () => data.applications(owner),
     enabled: !!allowed && documents,
   });
   const productsQuery = useQuery({
     queryKey: ["products"],
-    queryFn: demo.products,
+    queryFn: data.products,
     enabled: !!allowed && !!productId,
   });
   const query = applicationId

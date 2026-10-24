@@ -2,11 +2,10 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Modal, Select } from "@mantine/core";
 import { FileText, Upload, Eye, Download } from "lucide-react";
-import { isServerMode } from "../../shared/api/data";
 import { server } from "../../shared/api/server";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../../app/session";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import type { Application, Document } from "../../shared/api/types";
 import { date, shortId } from "../../shared/format";
 import { DocumentChecklist } from "./DocumentChecklist";
@@ -31,7 +30,7 @@ export function DocumentList({
   const [downloading, setDownloading] = useState<string | null>(null);
   const [lastFile, setLastFile] = useState<File | null>(null);
   const mutation = useMutation({
-    mutationFn: (f: File) => demo.upload(application.id, f),
+    mutationFn: (f: File) => data.upload(application.id, f),
     onSuccess: () => qc.invalidateQueries(),
   });
   const canUpload =
@@ -127,7 +126,7 @@ export function DocumentList({
               >
                 <Eye size={17} />
               </Button>
-              {isServerMode() && (
+              {
                 <Button
                   aria-label={`Скачать ${d.file_name}`}
                   variant="subtle"
@@ -151,7 +150,7 @@ export function DocumentList({
                 >
                   <Download size={17} />
                 </Button>
-              )}
+              }
             </div>
           ))}
         </div>
@@ -163,12 +162,6 @@ export function DocumentList({
               : "Здесь появятся документы по заявке"}
           </p>
         </Empty>
-      )}
-      {!isServerMode() && (
-        <p className="muted">
-          Демо-режим: сохраняются только сведения о файле. Содержимое PDF не
-          хранится и не отправляется на сервер.
-        </p>
       )}
       <Modal
         opened={!!selected}
@@ -185,9 +178,8 @@ export function DocumentList({
               {date(selected.created_at)}
             </p>
             <Alert color="gray">
-              {isServerMode()
-                ? "Содержимое файла доступно по кнопке скачивания после проверки сервером прав на заявку."
-                : "В автономном прототипе доступна карточка файла. Просмотр содержимого PDF не предусмотрен."}
+              "Содержимое файла доступно по кнопке скачивания после проверки
+              сервером прав на заявку."
             </Alert>
           </>
         )}
@@ -199,7 +191,7 @@ export function Documents() {
   const { session } = useSession();
   const q = useQuery({
     queryKey: ["applications", session?.username],
-    queryFn: () => demo.applications(session!.username),
+    queryFn: () => data.applications(session!.username),
   });
   const [params, setParams] = useSearchParams();
   const id = params.get("application");

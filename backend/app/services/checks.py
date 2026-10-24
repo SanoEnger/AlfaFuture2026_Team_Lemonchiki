@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.orm import Session
 from ..models import Company, CreditProduct, InformationRequest, LoanApplication, RiskAssessment, VerificationResult
 from ..schemas import Status
@@ -25,8 +26,13 @@ def run_checks(db: Session, app: LoanApplication, company: Company, product: Cre
     transition(db, app, Status.VERIFYING, reason='Запуск автоматических проверок')
     snapshot = take_snapshot(company, app)
     app.financial_snapshot = snapshot
-    registry = risk_port.registry_service.check(company.inn, company.legal_name)
-    bki = risk_port.bki_service.check(company.inn)
+    if os.getenv('VERIFICATION_PROVIDER', 'records') == 'records':
+        valid = len(company.inn) in (10, 12) and company.inn.isascii() and company.inn.isdecimal() and bool(company.legal_name.strip())
+        registry = {'passed': valid, 'source': 'COMPANY_RECORD', 'registration_status': 'UNKNOWN', 'requisites_match': False, 'message': 'Проверен формат реквизитов. Внешний реестр не подключён; сведения требуют проверки сотрудником.'}
+        bki = {'passed': True, 'source': 'MANUAL_REVIEW', 'credit_history': 'UNKNOWN', 'has_overdue': None, 'message': 'БКИ не подключено. Кредитная история не подтверждена; требуется ручное рассмотрение.'}
+    else:
+        registry = risk_port.registry_service.check(company.inn, company.legal_name)
+        bki = risk_port.bki_service.check(company.inn)
     for kind, result in (('REGISTRY', registry), ('BKI', bki)):
         db.add(VerificationResult(application_id=app.id, check_type=kind, result={'schema_version': 1, **result}, passed=bool(result.get('passed', False)), attempt_no=app.version))
     if not registry.get('passed') or not bki.get('passed'):
@@ -35,5 +41,5 @@ def run_checks(db: Session, app: LoanApplication, company: Company, product: Cre
         return 'NEEDS_INFO'
     score = risk_port.scoring_service.evaluate(snapshot, registry, bki, {'amount': str(app.requested_amount), 'term_months': app.term_months, 'annual_rate': str(product.annual_rate)})
     db.add(RiskAssessment(application_id=app.id, score=score['score'], risk_level=score['risk_level'], factors=score['factors'], recommendation=score['recommendation'], rules_version=score['rules_version'], input_snapshot=snapshot, attempt_no=app.version))
-    transition(db, app, Status.UNDER_REVIEW, reason='Проверки и демонстрационный скоринг завершены')
+    transition(db, app, Status.UNDER_REVIEW, reason='Проверки и расчёт риска завершены')
     return 'COMPLETED'

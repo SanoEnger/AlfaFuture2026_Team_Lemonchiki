@@ -125,20 +125,12 @@
   display: grid;
   gap: 16px;
 }
-.auth-demo-notice {
-  margin: 16px 0;
-}
 .auth-links {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
   margin-top: 18px;
   font-size: 13px;
-}
-.demo-mail {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere;
 }
 .admin-tabs {
   display: flex;
@@ -179,4 +171,32 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+.platform-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--gg-text);
+  text-decoration: none;
+}
+.platform-brand > img {
+  flex-shrink: 0;
+}
+.platform-brand strong {
+  display: block;
+  font-size: 19px;
+  line-height: 1.2;
+}
+.platform-brand small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--gg-text-secondary);
+  margin-top: 3px;
+}
+.rail-wordmark small {
+  white-space: normal;
+  max-width: 142px;
+  line-height: 1.3;
 }

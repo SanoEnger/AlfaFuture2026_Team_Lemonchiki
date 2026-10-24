@@ -3,7 +3,8 @@ import { Button, NumberInput, Select, TextInput } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "../../app/session";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
+import { restoreServerSession } from "../../shared/api/server";
 import type { Company } from "../../shared/api/types";
 import { ErrorMessage, Panel, PageTitle } from "../../components/ui/common";
 import { minorUnits } from "../../shared/validation";
@@ -51,10 +52,10 @@ export function CompanyEditor({
             )
           )
             throw new Error("Проверьте финансовые показатели");
-          await demo.updateCompany(session!.username, value);
+          await data.updateCompany(session!.username, value);
           await qc.invalidateQueries();
           if (!initial) {
-            setSession({ ...session!, onboardingComplete: true });
+            setSession(await restoreServerSession());
             navigate("/client/dashboard", { replace: true });
           } else onSaved?.();
         } catch (e) {
@@ -65,9 +66,8 @@ export function CompanyEditor({
       }}
     >
       <p className="muted">
-        Только синтетические данные. ИНН проверяется по формату, реестровая
-        проверка не выполняется. Изменения профиля не переписывают сведения
-        отправленных заявок.
+        Укажите сведения о вашей компании. Изменения профиля не переписывают
+        сведения отправленных заявок.
       </p>
       <div className="form-grid">
         <TextInput

@@ -1,136 +1,131 @@
-import { Button, Select } from "@mantine/core";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button, Select, Modal } from "@mantine/core";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "../../app/session";
-import { canDecide } from "../../shared/api/demo";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import { identity } from "../../shared/api/identity";
-import { ErrorMessage } from "../../components/ui/common";
+import { Panel, ErrorMessage } from "../../components/ui/common";
 import type { Application } from "../../shared/api/types";
-import { Panel } from "../../components/ui/common";
 export function BankDecisionBar({
-  application,
+  application: a,
   onAction,
 }: {
   application: Application;
-  onAction: (action: "offer" | "info" | "reject") => void;
+  onAction: (action: "approve" | "offer" | "info" | "reject") => void;
 }) {
   const { session } = useSession();
   const qc = useQueryClient();
   const [officer, setOfficer] = useState<string | null>(null);
-  const enabled =
-    application.status === "UNDER_REVIEW" &&
-    !!session &&
-    (session.mode === "api"
-      ? session.role === "BANK_EMPLOYEE"
-      : canDecide(application, session));
+  const [confirm, setConfirm] = useState(false);
   const admin = session?.role === "BANK_ADMIN";
-  const mutation = useMutation({
+  const enabled =
+    a.status === "UNDER_REVIEW" &&
+    !admin &&
+    a.assigned_officer_id === session?.username;
+  const directory = useQuery({
+    queryKey: ["officers", session?.username],
+    queryFn: identity.officers,
+  });
+  const m = useMutation({
     mutationFn: () =>
       admin
-        ? demo.assign(
-            application.id,
-            session!,
-            officer!,
-            application.version || 1,
-          )
-        : demo.claim(application.id, session!, application.version || 1),
-    onSuccess: () => qc.invalidateQueries(),
+        ? data.assign(a.id, session!, officer!, a.version)
+        : data.claim(a.id, session!, a.version),
+    onSuccess: async () => {
+      setConfirm(false);
+      await qc.invalidateQueries();
+    },
     onError: () => qc.invalidateQueries(),
   });
-  const assigned = application.assigned_officer_id;
+  const assigned =
+    a.assigned_officer_name ||
+    directory.data?.find((u) => u.id === a.assigned_officer_id)?.displayName;
   return (
     <Panel className="bank-decision-bar">
       <h3>Работа с заявкой</h3>
       <p>
         <strong>Ответственный: </strong>
-        {session?.mode === "api"
-          ? "Назначение в этом API не предусмотрено"
-          : assigned
-            ? identity.user(assigned)?.displayName ||
-              (assigned === "banker"
-                ? "Сотрудник банка"
-                : assigned === "banker_two"
-                  ? "Второй сотрудник банка"
-                  : assigned)
-            : "Не назначен"}
+        {assigned || "Не назначен"}
       </p>
-      {!admin &&
-        session?.mode !== "api" &&
-        !assigned &&
-        application.status === "UNDER_REVIEW" && (
-          <Button
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            Взять в работу
-          </Button>
-        )}
-      {admin && (
+      {!admin && !a.assigned_officer_id && a.status === "UNDER_REVIEW" && (
+        <Button loading={m.isPending} onClick={() => m.mutate()}>
+          Взять в работу
+        </Button>
+      )}
+      {admin ? (
         <>
           <Select
             label="Новый ответственный"
             value={officer}
             onChange={setOfficer}
-            data={[
-              { value: "banker", label: "Сотрудник банка · демо" },
-              { value: "banker_two", label: "Второй сотрудник · демо" },
-              ...identity
-                .staff()
-                .filter((u) => u.status === "ACTIVE")
-                .map((u) => ({ value: u.id, label: u.displayName })),
-            ]}
+            data={(directory.data || [])
+              .filter((u) => u.status === "ACTIVE")
+              .map((u) => ({ value: u.id, label: u.displayName }))}
           />
           <Button
             variant="default"
-            disabled={!officer || officer === assigned}
-            loading={mutation.isPending}
-            onClick={() => {
-              if (window.confirm("Подтвердить переназначение заявки?"))
-                mutation.mutate();
-            }}
+            disabled={!officer || officer === a.assigned_officer_id}
+            onClick={() => setConfirm(true)}
           >
             Переназначить
           </Button>
-          <p className="muted">Кредитные решения недоступны администратору.</p>
+          <p className="muted">
+            Администратор управляет назначениями. Кредитное решение принимает
+            сотрудник банка.
+          </p>
+        </>
+      ) : (
+        <>
+          <p>
+            {enabled
+              ? "Проверьте сведения и факторы риска перед решением."
+              : a.next_action}
+          </p>
+          <div className="bank-actions">
+            <Button disabled={!enabled} onClick={() => onAction("approve")}>
+              Одобрить на условиях клиента
+            </Button>
+            <Button variant="default" disabled={!enabled} onClick={() => onAction("offer")}>
+              Предложить другие условия
+            </Button>
+            <Button
+              variant="default"
+              disabled={!enabled}
+              onClick={() => onAction("info")}
+            >
+              Запросить сведения
+            </Button>
+            <Button
+              variant="subtle"
+              disabled={!enabled}
+              onClick={() => onAction("reject")}
+            >
+              Отказать
+            </Button>
+          </div>
+          {!enabled && (
+            <p className="muted">
+              Решение доступно назначенному сотруднику при статусе «На
+              рассмотрении».
+            </p>
+          )}
         </>
       )}
-      <ErrorMessage error={mutation.error} />
-      <p>
-        {enabled
-          ? "Проверьте данные и факторы риска перед решением."
-          : application.next_action}
-      </p>
-      {!admin && (
-        <div className="bank-actions">
-          <Button disabled={!enabled} onClick={() => onAction("offer")}>
-            Предложить условия
-          </Button>
-          <Button
-            variant="default"
-            disabled={!enabled}
-            onClick={() => onAction("info")}
-          >
-            Запросить сведения
-          </Button>
-          <Button
-            variant="subtle"
-            disabled={!enabled}
-            onClick={() => onAction("reject")}
-          >
-            Отказать
-          </Button>
-        </div>
-      )}
-      {!enabled && (
-        <p className="muted">
-          Решение доступно назначенному сотруднику при статусе «На
-          рассмотрении».
-        </p>
-      )}
-      <small className="muted">
-        Демо-режим · допустимость операции повторно проверяет локальный адаптер.
-      </small>
+      <ErrorMessage error={m.error || directory.error} />
+      <Modal
+        opened={confirm}
+        onClose={() => {
+          if (!m.isPending) setConfirm(false);
+        }}
+        title="Изменить ответственного?"
+        centered
+      >
+        <p>Назначение и прежний ответственный сохранятся в истории.</p>
+        <ErrorMessage error={m.error} />
+        <Button loading={m.isPending} onClick={() => m.mutate()}>
+          Подтвердить назначение
+        </Button>
+      </Modal>
     </Panel>
   );
 }

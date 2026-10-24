@@ -20,6 +20,7 @@ from app.seeds import demo_id, seed
 
 @pytest.fixture
 def pg(monkeypatch):
+    monkeypatch.setenv('VERIFICATION_PROVIDER', 'fixtures')
     url = os.getenv("DATABASE_TEST_URL")
     if not url:
         pytest.skip("Set DATABASE_TEST_URL to an isolated PostgreSQL database")

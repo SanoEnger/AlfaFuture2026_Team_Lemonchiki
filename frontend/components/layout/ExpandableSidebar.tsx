@@ -1,3 +1,5 @@
+import { brand } from "../../shared/brand";
+import { BrandMark } from "../ui/Brand";
 import { useEffect, useRef, useState } from "react";
 import { Drawer, Tooltip } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -91,12 +93,13 @@ export function ExpandableSidebar({
               <Menu size={20} strokeWidth={1.8} />
             </button>
           ) : (
-            <span className="rail-logo" aria-label="Альфа Бизнес">
-              а
+            <span className="rail-logo" aria-label={brand.name}>
+              <BrandMark size={36} />
             </span>
           )}
           <span className="sidebar-copy rail-wordmark" aria-hidden="true">
-            альфа<small>БИЗНЕС</small>
+            {brand.name}
+            <small>{brand.tagline}</small>
           </span>
           {isMobile && (
             <button

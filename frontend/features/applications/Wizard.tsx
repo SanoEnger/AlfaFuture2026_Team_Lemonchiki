@@ -21,8 +21,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { products, productName } from "../../shared/api/demo";
-import { data as demo } from "../../shared/api/data";
+import { products, productName } from "../../shared/api/catalog";
+import { data } from "../../shared/api/data";
 import type { Application, Company, Draft } from "../../shared/api/types";
 import { money, purposeName } from "../../shared/format";
 import {
@@ -33,22 +33,19 @@ import {
 } from "../../components/ui/common";
 import { CompanyInfo } from "../company/Company";
 import { validateDraft } from "../../shared/validation";
-import { isServerMode } from "../../shared/api/data";
 const steps = ["Выбор продукта", "Параметры", "Компания", "Подтверждение"];
 export function Wizard() {
   const { session } = useSession();
   const [params] = useSearchParams();
   const [resumedId] = useState(() =>
-    isServerMode()
-      ? sessionStorage.getItem(`smart-credit-api-draft-${session!.username}`)
-      : null,
+    sessionStorage.getItem("finmarshrut-draft-" + session!.username),
   );
   const id = params.get("draft") || resumedId;
   const q = useQuery({
     queryKey: ["wizard", session?.username, id],
     queryFn: async () => ({
-      company: await demo.company(session!.username),
-      existing: id ? await demo.application(id, session!.username) : null,
+      company: await data.company(session!.username),
+      existing: id ? await data.application(id, session!.username) : null,
     }),
   });
   return (
@@ -78,7 +75,6 @@ function WizardForm({
   const [, setContextParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const storageKey = `smart-credit-form-${session!.username}-${existing?.id || "new"}`;
   const [draft, setDraft] = useState<Draft>(() => {
     if (existing)
       return {
@@ -90,11 +86,6 @@ function WizardForm({
           months_active: existing.company.months_active,
         },
       };
-    try {
-      if (isServerMode()) throw new Error("Use server draft");
-      const cached = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (cached) return cached.draft || cached;
-    } catch {}
     const p = products.find((p) => p.id === preferred) || products[0];
     return {
       product_id: p.id,
@@ -124,35 +115,17 @@ function WizardForm({
   }, [draft.product_id]);
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState("Ожидает сохранения");
+  const [saved, setSaved] = useState(
+    existing ? "Черновик сохранён" : "Черновик ещё не создан",
+  );
   const [saveFailed, setSaveFailed] = useState(false);
   const [consent, setConsent] = useState(false);
-  const idRef = useRef<string | undefined>(
-    existing?.id ||
-      (() => {
-        try {
-          if (isServerMode()) return undefined;
-          return JSON.parse(localStorage.getItem(storageKey) || "null")?.id;
-        } catch {
-          return undefined;
-        }
-      })(),
-  );
+  const idRef = useRef<string | undefined>(existing?.id);
   const submitting = useRef(false);
-  const versionRef = useRef<number | undefined>(
-    existing?.version ||
-      (() => {
-        try {
-          if (isServerMode()) return undefined;
-          return JSON.parse(localStorage.getItem(storageKey) || "null")
-            ?.version;
-        } catch {
-          return undefined;
-        }
-      })(),
-  );
+  const versionRef = useRef<number | undefined>(existing?.version);
   const pending = useRef<Promise<unknown>>(Promise.resolve());
   const latest = useRef(draft);
+  const autosaveBaseline = useRef(JSON.stringify(draft));
   latest.current = draft;
   const product =
     products.find((p) => p.id === draft.product_id) || products[0];
@@ -165,7 +138,7 @@ function WizardForm({
     const task = pending.current
       .catch(() => {})
       .then(async () => {
-        const a = await demo.saveDraft(
+        const a = await data.saveDraft(
           session!.username,
           snapshot,
           idRef.current,
@@ -173,20 +146,8 @@ function WizardForm({
         );
         idRef.current = a.id;
         versionRef.current = a.version;
-        if (isServerMode())
-          sessionStorage.setItem(
-            `smart-credit-api-draft-${session!.username}`,
-            a.id,
-          );
-        else
-          localStorage.setItem(
-            storageKey,
-            JSON.stringify({
-              id: a.id,
-              version: a.version,
-              draft: latest.current,
-            }),
-          );
+        autosaveBaseline.current = JSON.stringify(snapshot);
+        sessionStorage.setItem("finmarshrut-draft-" + session!.username, a.id);
         if (JSON.stringify(snapshot) === JSON.stringify(latest.current)) {
           setSaved(
             `Сохранено в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`,
@@ -206,22 +167,10 @@ function WizardForm({
     return task;
   }
   useEffect(() => {
-    try {
-      if (!isServerMode())
-        localStorage.setItem(
-          storageKey,
-          JSON.stringify({
-            id: idRef.current,
-            version: versionRef.current,
-            draft,
-          }),
-        );
-      setSaved("Ожидает сохранения");
-    } catch {
-      setError(new Error("Не удалось сохранить данные в браузере"));
-      setSaved("Не удалось сохранить");
-      setSaveFailed(true);
-    }
+    // Opening the form or restoring a draft must never create/update a loan.
+    // Save automatically only after its values actually change.
+    if (JSON.stringify(draft) === autosaveBaseline.current) return;
+    setSaved("Ожидает сохранения");
     if (
       !valid ||
       submitting.current ||
@@ -272,12 +221,8 @@ function WizardForm({
       } else {
         const a = await save();
         if (submit) {
-          await demo.submit(a.id);
-          localStorage.removeItem(storageKey);
-          if (isServerMode())
-            sessionStorage.removeItem(
-              `smart-credit-api-draft-${session!.username}`,
-            );
+          await data.submit(a.id);
+          sessionStorage.removeItem("finmarshrut-draft-" + session!.username);
           await qc.invalidateQueries();
           navigate(`/client/applications/${a.id}`);
         } else setStep((s) => Math.min(3, s + 1));
@@ -357,8 +302,8 @@ function WizardForm({
                   ))}
                 </div>
                 <div className="notice">
-                  Синтетические продукты для демонстрации. Условия не являются
-                  предложением банка.
+                  Выберите программу. Индивидуальные условия появятся после
+                  рассмотрения заявки.
                 </div>
               </>
             ) : step === 1 ? (
@@ -411,12 +356,7 @@ function WizardForm({
                 />
                 <Textarea
                   label="Комментарий"
-                  disabled={isServerMode()}
-                  description={
-                    isServerMode()
-                      ? "Комментарий не поддерживается текущим серверным контрактом"
-                      : "Необязательно"
-                  }
+                  description="Необязательно"
                   placeholder="Расскажите о планах бизнеса"
                   value={draft.comment}
                   onChange={(e) => update("comment", e.target.value)}
@@ -518,7 +458,7 @@ function WizardForm({
                 </dl>
                 <hr />
                 <Checkbox
-                  label="Подтверждаю корректность демонстрационных данных и отправку заявки на рассмотрение"
+                  label="Подтверждаю корректность данных и отправку заявки на рассмотрение"
                   checked={consent}
                   onChange={(e) => setConsent(e.currentTarget.checked)}
                 />
@@ -588,7 +528,7 @@ function WizardForm({
                   <dd>{draft.term_months} мес.</dd>
                 </div>
                 <div>
-                  <dt>Демо-ставка</dt>
+                  <dt>Базовая ставка</dt>
                   <dd>от {product.annual_rate}%</dd>
                 </div>
               </dl>

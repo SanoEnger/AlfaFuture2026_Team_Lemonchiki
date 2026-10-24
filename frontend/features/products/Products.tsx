@@ -3,7 +3,7 @@ import { Button, Modal } from "@mantine/core";
 import { ArrowUpRight, Landmark, ArrowRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import type { Product } from "../../shared/api/types";
 import { money } from "../../shared/format";
 import {
@@ -13,7 +13,7 @@ import {
   Metrics,
 } from "../../components/ui/common";
 export function ProductCards({ compact = false }: { compact?: boolean }) {
-  const q = useQuery({ queryKey: ["products"], queryFn: demo.products });
+  const q = useQuery({ queryKey: ["products"], queryFn: data.products });
   const [params, setParams] = useSearchParams();
   const [showDetails, setShowDetails] = useState(true);
   const selected = q.data?.find((p) => p.id === params.get("product")) || null;
@@ -51,9 +51,7 @@ export function ProductCards({ compact = false }: { compact?: boolean }) {
                     ["Срок", `до ${p.max_term} мес.`],
                   ]}
                 />
-                <p className="muted">
-                  Демонстрационные условия · Без реальной выдачи
-                </p>
+                <p className="muted">Условия кредитной программы</p>
               </>
             )}
             <div className="product-bottom">
@@ -100,13 +98,11 @@ export function ProductCards({ compact = false }: { compact?: boolean }) {
                 </dd>
               </div>
               <div>
-                <dt>Демо-ставка</dt>
+                <dt>Базовая ставка</dt>
                 <dd>{selected.annual_rate}% годовых</dd>
               </div>
             </dl>
-            <p className="muted">
-              Синтетический продукт для демонстрации интерфейса.
-            </p>
+            <p className="muted">Программа финансирования бизнеса.</p>
             <Button
               component={Link}
               to={`/client/applications/new?product=${selected.id}`}

@@ -12,35 +12,16 @@ export function ProfileSettings() {
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
-  if (session?.mode === "api")
-    return (
-      <Panel>
-        <h3>Профиль сервера</h3>
-        <p>
-          Роль и доступ определяет сервер проекта. Смена имени и пароля через
-          этот API пока не поддерживается.
-        </p>
-      </Panel>
-    );
-  if (!session || session.demoAccount)
-    return (
-      <Panel>
-        <h3>Профиль</h3>
-        <p>
-          Готовые демосценарии используют фиксированные учебные аккаунты. Для
-          проверки профиля и пароля создайте тестовый аккаунт через регистрацию.
-        </p>
-      </Panel>
-    );
+  if (!session) return null;
   return (
     <>
       <Panel>
         <h3>Профиль</h3>
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             try {
-              setSession(identity.updateProfile(session, name));
+              setSession(await identity.updateProfile(session, name));
               setSuccess(true);
               setError(null);
             } catch (e) {
@@ -95,7 +76,9 @@ export function ProfileSettings() {
           />
           <PasswordInput
             label="Новый пароль"
-            description="От 10 символов, буквы и цифры"
+            description="10–24 символа, буквы и цифры"
+            minLength={10}
+            maxLength={24}
             required
             value={password}
             onChange={(e) => setPassword(e.currentTarget.value)}
@@ -103,13 +86,15 @@ export function ProfileSettings() {
           />
           <PasswordInput
             label="Повторите новый пароль"
+            minLength={10}
+            maxLength={24}
             required
             value={confirm}
             onChange={(e) => setConfirm(e.currentTarget.value)}
             autoComplete="new-password"
           />
           <p>
-            После изменения потребуется повторный вход. Старые локальные сеансы
+            После изменения потребуется повторный вход. Все предыдущие сеансы
             будут отозваны.
           </p>
           <Button type="submit" loading={busy}>

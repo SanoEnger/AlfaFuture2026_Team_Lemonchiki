@@ -1,4 +1,4 @@
-﻿import { ArrowUpRight, BookOpen, MessagesSquare } from "lucide-react";
+import { ArrowUpRight, BookOpen, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AssistantMessage as Message } from "../types";
 

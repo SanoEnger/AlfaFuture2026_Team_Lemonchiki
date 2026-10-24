@@ -1,6 +1,6 @@
 import type { Application, Product } from "../../../shared/api/types";
-import { productName } from "../../../shared/api/demo";
-import { data as demo } from "../../../shared/api/data";
+import { productName } from "../../../shared/api/catalog";
+import { data } from "../../../shared/api/data";
 import { date, money, shortId, statuses } from "../../../shared/format";
 import type {
   AssistantContext,
@@ -39,7 +39,7 @@ function reply(
 ): AssistantReply {
   return { text, sources, actions };
 }
-const catalog = { label: "Каталог демопродуктов", to: "/client/products" };
+const catalog = { label: "Каталог продуктов", to: "/client/products" };
 export function buildReply(
   context: AssistantContext,
   question: string,
@@ -50,7 +50,7 @@ export function buildReply(
   const base = a ? `/client/applications/${encodeURIComponent(a.id)}` : null;
   const source = a
     ? {
-        label: `История заявки №${shortId(a.id)} · демоданные`,
+        label: `История заявки №${shortId(a.id)}`,
         to: `${base}#history`,
       }
     : catalog;
@@ -82,7 +82,7 @@ export function buildReply(
                 .map((r) => r.message)
                 .join("\n\n") || "Проверьте запрос банка в карточке заявки."
             : a.status === "COMPLETED"
-              ? "Демонстрационное оформление завершено. Реальные средства не перечислялись."
+              ? "Оформление завершено. Статус отражает обработку заявки."
               : "";
     return reply(
       `Заявка №${shortId(a.id)} · ${statuses[a.status]}.\n\n${details}${details ? "\n\n" : ""}Следующий шаг: ${a.next_action}.${event ? `\n\nПоследнее событие этого статуса: ${date(event.occurred_at)}. ${event.reason}` : ""}`,
@@ -102,13 +102,13 @@ export function buildReply(
       : "Причина изменения условий не указана. В доступных данных нет оснований объяснять её иначе.";
     const outcome =
       a.status === "OFFERED"
-        ? "После вашего явного подтверждения принятия приложение покажет завершение демонстрационного оформления. Сам помощник ничего не принимает и не отправляет."
+        ? "После вашего явного подтверждения принятия приложение покажет принятие предложения. Сам помощник ничего не принимает и не отправляет."
         : `Текущий статус: ${statuses[a.status]}. Предложение можно принять только при статусе «Предложение банка».`;
     return reply(
       `Запрошенные сумма и срок сохраняются отдельно.\n\nЗапрошено: ${money(a.requested_terms.amount)} · ${a.requested_terms.term_months} мес.\nПредложено: ${money(offer.amount)} · ${offer.term_months} мес. · ${offer.annual_rate}% годовых.\n\n${reason}\n\n${outcome}`,
       [
         {
-          label: `Предложение банка по заявке №${shortId(a.id)} · демоданные`,
+          label: `Предложение банка по заявке №${shortId(a.id)}`,
           to: `${base}#offer`,
         },
       ],
@@ -128,18 +128,18 @@ export function buildReply(
       ? "Выписка обычно помогает сопоставить поступления и расходы бизнеса. Причина запроса по конкретной заявке определяется только сообщением банка.\n\n"
       : "";
     return reply(
-      `${why}${requestText}\n\n${files}\n\nВ демо разрешён PDF до 5 МБ, загрузка доступна в черновике и при уточнении. Сохраняются только сведения о файле. После ответа на запрос нужно явно нажать «Отправить уточнения»; помощник не делает это автоматически.`,
+      `${why}${requestText}\n\n${files}\n\nРазрешён PDF до 5 МБ, загрузка доступна в черновике и при уточнении. Файл сохраняется на сервере и доступен участникам заявки. После ответа на запрос нужно явно нажать «Отправить уточнения»; помощник не делает это автоматически.`,
       a
         ? [
             source,
             {
-              label: `Документы заявки №${shortId(a.id)} · демоданные`,
+              label: `Документы заявки №${shortId(a.id)}`,
               to: documents.to,
             },
           ]
         : [
             {
-              label: "Раздел документов · локальный деморежим",
+              label: "Раздел документов",
               to: documents.to,
             },
           ],
@@ -152,14 +152,14 @@ export function buildReply(
     const chosen = context.type === "product" ? context.product : null;
     const lines = (chosen ? [chosen] : products).map(
       (p) =>
-        `${p.name}: ${p.description}. Сумма ${money(p.min_amount)}–${money(p.max_amount)}, срок ${p.min_term}–${p.max_term} мес., демо-ставка ${p.annual_rate}% годовых.`,
+        `${p.name}: ${p.description}. Сумма ${money(p.min_amount)}–${money(p.max_amount)}, срок ${p.min_term}–${p.max_term} мес., базовая ставка ${p.annual_rate}% годовых.`,
     );
     return reply(
-      `${lines.join("\n\n")}\n\nСрок следует сопоставить с задачей бизнеса и посильным ежемесячным платежом. Более долгий срок обычно уменьшает платёж и увеличивает общую сумму процентов. Условия в прототипе синтетические и не являются обещанием банка.`,
+      `${lines.join("\n\n")}\n\nСрок следует сопоставить с задачей бизнеса и посильным ежемесячным платежом. Более долгий срок обычно уменьшает платёж и увеличивает общую сумму процентов. Индивидуальные условия определяются после рассмотрения заявки.`,
       [
         chosen
           ? {
-              label: `${chosen.name} · каталог демопродуктов`,
+              label: `${chosen.name} · каталог продуктов`,
               to: `/client/products?product=${chosen.id}`,
             }
           : catalog,
@@ -197,10 +197,10 @@ export const localAssistantService: AssistantService = {
     let fresh = context;
     if (original) {
       // The read-only adapter checks ownership again for every response.
-      const application = await demo.application(original.id, context.owner);
+      const application = await data.application(original.id, context.owner);
       fresh = { ...context, application } as AssistantContext;
     }
-    const products = await demo.products();
+    const products = await data.products();
     abortIfNeeded(signal);
     return buildReply(fresh, question, products);
   },

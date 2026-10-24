@@ -1,7 +1,10 @@
-﻿import { useEffect, useState, type CSSProperties } from "react";
+import { brand } from "../../shared/brand";
+import { identity } from "../../shared/api/identity";
+import { ErrorMessage } from "../ui/common";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { data as demo } from "../../shared/api/data";
+import { data } from "../../shared/api/data";
 import {
   ActionIcon,
   Button,
@@ -30,6 +33,7 @@ export function AppShell() {
   const mobileScreen = useMediaQuery("(max-width: 768px)");
   const touchScreen = useMediaQuery("(hover: none), (pointer: coarse)");
   const canExpandAssistant = useMediaQuery("(min-width: 1440px)");
+  const [logoutError, setLogoutError] = useState<Error | null>(null);
   const [mobile, setMobile] = useState(false);
   const [assistant, setAssistant] = useState(false);
   const [assistantExpanded, setAssistantExpanded] = useState(false);
@@ -39,7 +43,7 @@ export function AppShell() {
   const bank = session?.role !== "CLIENT";
   const company = useQuery({
     queryKey: ["company", session?.username],
-    queryFn: () => demo.company(session!.username),
+    queryFn: () => data.company(session!.username),
     enabled: !!session && !bank && session.onboardingComplete !== false,
   });
   useEffect(() => {
@@ -84,7 +88,7 @@ export function AppShell() {
               ? session?.role === "BANK_ADMIN"
                 ? "Администратор"
                 : "Сотрудник банка"
-              : "Александр"),
+              : "Предприниматель"),
           company: bank
             ? "Кредитный отдел"
             : company.data?.legal_name || "Моя компания",
@@ -93,9 +97,15 @@ export function AppShell() {
         onPinnedChange={pin}
         mobileOpened={mobile}
         onMobileClose={() => setMobile(false)}
-        onLogout={() => {
-          setSession(null);
-          navigate("/login");
+        onLogout={async () => {
+          setLogoutError(null);
+          try {
+            await identity.logout();
+            setSession(null);
+            navigate("/login");
+          } catch (e) {
+            setLogoutError(e as Error);
+          }
         }}
       />
       <div className="workspace">
@@ -114,9 +124,7 @@ export function AppShell() {
             {bank ? "Банк" : "Кабинет"} / {active?.label || "Заявка"}
           </span>
           <div className="topbar-actions">
-            <span className="demo-label">
-              {session?.mode === "api" ? "Демо API · сервер" : "Демо-режим"}
-            </span>
+            <span className="platform-label">{brand.name}</span>
             <Button
               className="theme-button"
               aria-label="Переключить цветовую тему"
@@ -142,11 +150,12 @@ export function AppShell() {
             )}
           </div>
         </header>
+        <ErrorMessage error={logoutError} />
         <main className="content">
           <Outlet />
         </main>
         <footer className="app-footer">
-          SMART CREDIT · Демонстрационные продукты и данные
+          {brand.name} · {brand.tagline}
         </footer>
       </div>
       {!bank && (

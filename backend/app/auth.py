@@ -7,7 +7,7 @@ import os
 import secrets
 import uuid
 import jwt
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -47,26 +47,30 @@ def secret_key() -> str:
 
 def issue_token(user: User) -> str:
     now = datetime.now(timezone.utc)
-    return jwt.encode({'sub': str(user.id), 'iat': now, 'exp': now + timedelta(minutes=60)}, secret_key(), algorithm='HS256')
+    return jwt.encode({'sub': str(user.id), 'sv': user.session_version, 'iat': now, 'exp': now + timedelta(minutes=60)}, secret_key(), algorithm='HS256')
 
 
-def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer), db: Session = Depends(get_db)) -> User:
+def current_user(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer), db: Session = Depends(get_db)) -> User:
     if credentials is None:
-        raise ApiError('UNAUTHORIZED', 'Требуется Bearer token', 401)
+        from .security import cookie_user
+        return cookie_user(request, db)
     try:
         claims = jwt.decode(credentials.credentials, secret_key(), algorithms=['HS256'])
         user_id = uuid.UUID(claims['sub'])
     except (jwt.InvalidTokenError, ValueError, KeyError):
         raise ApiError('UNAUTHORIZED', 'Недействительный токен', 401) from None
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or user.status != 'ACTIVE' or claims.get('sv', 1) != user.session_version:
         raise ApiError('UNAUTHORIZED', 'Пользователь не найден', 401)
     return user
 
 
 def require_role(role: str):
     def dependency(user: User = Depends(current_user)) -> User:
-        if user.role != role:
+        permitted = {role}
+        if role == 'BANK_EMPLOYEE':
+            permitted.update(('BANK_OFFICER', 'BANK_ADMIN'))
+        if user.role not in permitted:
             raise ApiError('FORBIDDEN', 'Недостаточно прав', 403)
         return user
     return dependency

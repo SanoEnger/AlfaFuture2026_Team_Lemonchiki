@@ -94,17 +94,30 @@ def as_application(db: Session, app: LoanApplication) -> ApplicationResponse:
     if app.status != Status.DRAFT and app.financial_snapshot:
         historical = {key: value for key, value in app.financial_snapshot.items() if key in CompanyResponse.model_fields and key != 'id' and value is not None}
         company_data = CompanyResponse.model_validate({**company_data.model_dump(), **historical})
-    return ApplicationResponse(id=app.id, status=app.status, requested_terms=TermsResponse(amount=app.requested_amount, term_months=app.term_months, product_id=app.product_id, purpose=app.purpose), company=company_data, updated_at=app.updated_at, next_action=next_action(app.status), latest_offer=offer)
+    officer = db.get(User, app.assigned_officer_id) if app.assigned_officer_id else None
+    return ApplicationResponse(id=app.id, status=app.status, requested_terms=TermsResponse(amount=app.requested_amount, term_months=app.term_months, product_id=app.product_id, purpose=app.purpose, comment=app.comment), company=company_data, updated_at=app.updated_at, next_action=next_action(app.status), latest_offer=offer, version=app.revision, assigned_officer_id=app.assigned_officer_id, assigned_officer_name=(officer.display_name or officer.username) if officer else None)
 
 
 def status_response(app: LoanApplication) -> StatusResponse:
     return StatusResponse(application_id=app.id, current_status=app.status, next_action=next_action(app.status))
 
 
+def decision_permission(db: Session, app: LoanApplication, user: User, expected_version: int | None):
+    if user.role not in ('BANK_EMPLOYEE', 'BANK_OFFICER'):
+        raise ApiError('FORBIDDEN', 'Кредитное решение доступно сотруднику банка', 403)
+    if expected_version is not None and expected_version != app.revision:
+        raise ApiError('APPLICATION_VERSION_CONFLICT', 'Заявка изменилась. Обновите данные.', 409)
+    # Preserve compatibility: a legacy officer atomically claims an unassigned case with their first command.
+    if not app.assigned_officer_id and user.role == 'BANK_EMPLOYEE':
+        app.assigned_officer_id = user.id
+    if app.assigned_officer_id != user.id:
+        raise ApiError('FORBIDDEN', 'Сначала возьмите свободную заявку в работу. Чужие назначения недоступны.', 403)
+
+
 @router.post('/auth/demo-login', response_model=TokenResponse, tags=['auth'])
 def demo_login(body: DemoLoginRequest, db: Db):
     user = db.scalar(select(User).where(User.username == body.username))
-    if not user or not verify_password(body.password, user.password_hash):
+    if not user or user.status != 'ACTIVE' or not verify_password(body.password, user.password_hash):
         raise ApiError('UNAUTHORIZED', 'Неверный логин или пароль', 401)
     return TokenResponse(access_token=issue_token(user), role=user.role)
 
@@ -140,7 +153,7 @@ def create_app(body: CreateApplicationRequest, db: Db, user: Client):
     if not (len(company.inn) in (10, 12) and company.inn.isascii() and company.inn.isdecimal()):
         raise ApiError('VALIDATION_ERROR', 'ИНН должен состоять из 10 или 12 цифр', 422)
     update_financials(company, body.company_financials)
-    application = LoanApplication(company_id=company.id, applicant_id=user.id, product_id=product.id, requested_amount=body.amount, term_months=body.term_months, purpose=body.purpose, status=Status.DRAFT)
+    application = LoanApplication(company_id=company.id, applicant_id=user.id, product_id=product.id, requested_amount=body.amount, term_months=body.term_months, purpose=body.purpose, comment=body.comment, status=Status.DRAFT)
     db.add(application)
     db.flush()
     append_event(db, application, None, Status.DRAFT, 'Клиент создал черновик', user.id)
@@ -151,6 +164,8 @@ def create_app(body: CreateApplicationRequest, db: Db, user: Client):
 @router.patch('/applications/{application_id}', response_model=ApplicationResponse, tags=['client'])
 def patch_app(application_id: uuid.UUID, body: PatchApplicationRequest, db: Db, user: Client):
     app = app_of(db, application_id, user, lock=True)
+    if body.expected_version is not None and body.expected_version != app.revision:
+        raise ApiError('APPLICATION_VERSION_CONFLICT', 'Заявка изменилась. Обновите данные.', 409)
     if app.status != Status.DRAFT:
         raise ApiError('INVALID_TRANSITION', 'Изменять можно только черновик', 409)
     product_id = body.product_id or app.product_id
@@ -160,8 +175,11 @@ def patch_app(application_id: uuid.UUID, body: PatchApplicationRequest, db: Db, 
     app.product_id, app.requested_amount, app.term_months = product_id, amount, term
     if body.purpose is not None:
         app.purpose = body.purpose
+    if body.comment is not None:
+        app.comment = body.comment
     update_financials(db.get(Company, app.company_id), body.company_financials)
     app.updated_at = datetime.now(timezone.utc)
+    app.revision += 1
     db.commit()
     return as_application(db, app)
 
@@ -271,7 +289,7 @@ def accept_offer(application_id: uuid.UUID, db: Db, user: Client, complete_demo:
     transition(db, app, Status.ACCEPTED, actor_id=user.id, reason='Клиент принял предложение')
     if complete_demo:
         # Preserve existing API clients; the new UI explicitly opts into separate completion.
-        transition(db, app, Status.COMPLETED, reason='Демонстрационная выдача завершена; реальные средства не перечислялись')
+        transition(db, app, Status.COMPLETED, reason='Оформление заявки завершено')
     db.commit()
     return status_response(app)
 
@@ -308,6 +326,7 @@ def bank_app(application_id: uuid.UUID, db: Db, user: Banker):
 @router.post('/bank/applications/{application_id}/request-info', response_model=StatusResponse, tags=['bank'])
 def request_info(application_id: uuid.UUID, body: InfoRequestInput, db: Db, user: Banker):
     app = app_of(db, application_id, lock=True)
+    decision_permission(db, app, user, body.expected_version)
     if app.status != Status.UNDER_REVIEW:
         raise ApiError('INVALID_TRANSITION', 'Запрос сведений доступен только при рассмотрении', 409)
     db.add(InformationRequest(application_id=app.id, message=body.message, status='OPEN'))
@@ -319,6 +338,7 @@ def request_info(application_id: uuid.UUID, body: InfoRequestInput, db: Db, user
 @router.post('/bank/applications/{application_id}/decision', response_model=StatusResponse, tags=['bank'])
 def bank_decision(application_id: uuid.UUID, body: BankDecisionRequest, db: Db, user: Banker):
     app = app_of(db, application_id, lock=True)
+    decision_permission(db, app, user, body.expected_version)
     if app.status != Status.UNDER_REVIEW:
         raise ApiError('DUPLICATE_OPERATION', 'Решение доступно только при статусе UNDER_REVIEW', 409)
     assessment = db.scalar(select(RiskAssessment).where(RiskAssessment.application_id == app.id, RiskAssessment.attempt_no == app.version).order_by(RiskAssessment.created_at.desc()).limit(1))

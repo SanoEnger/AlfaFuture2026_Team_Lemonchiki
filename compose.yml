@@ -8,8 +8,27 @@ x-backend: &backend
     APP_SECRET_KEY: ${APP_SECRET_KEY:?Run python scripts/setup_env.py}
     UPLOAD_DIR: /app/storage
     CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    VERIFICATION_PROVIDER: records
+    PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:5173}
+    SMTP_HOST: ${SMTP_HOST:-mailpit}
+    SMTP_PORT: ${SMTP_PORT:-1025}
+    MAIL_FROM: ${MAIL_FROM:-noreply@finmarshrut.test}
+    SMTP_USERNAME: ${SMTP_USERNAME:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+    SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
 
 services:
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    ports:
+      - "127.0.0.1:${MAIL_PORT:-8025}:8025"
+    volumes:
+      - maildata:/data
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
     ports:
@@ -43,7 +62,7 @@ services:
 
   seed:
     <<: *backend
-    command: [python, -m, app.seeds, --scenarios]
+    command: [python, -m, app.bootstrap]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -55,6 +74,8 @@ services:
     volumes:
       - documents:/app/storage
     depends_on:
+      mailpit:
+        condition: service_started
       seed:
         condition: service_completed_successfully
     healthcheck:
@@ -64,14 +85,6 @@ services:
       retries: 20
       start_period: 10s
     restart: unless-stopped
-
-  smoke:
-    <<: *backend
-    profiles: [test]
-    command: [python, scripts/smoke.py, --base-url, http://api:8000]
-    depends_on:
-      api:
-        condition: service_healthy
 
   tests:
     <<: *backend
@@ -87,3 +100,4 @@ services:
 volumes:
   pgdata:
   documents:
+  maildata:

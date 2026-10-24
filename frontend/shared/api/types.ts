@@ -18,8 +18,7 @@ export interface Session {
   onboardingComplete?: boolean;
   sessionVersion?: number;
   issuedAt?: number;
-  demoAccount?: boolean;
-  mode?: "demo" | "api";
+  mode?: "api";
 }
 export interface Financials {
   revenue: string;
@@ -106,6 +105,14 @@ export interface Application {
   risk: Risk | null;
   version?: number;
   assigned_officer_id?: string | null;
+  assigned_officer_name?: string | null;
+  verifications?: {
+    check_type: string;
+    result: Record<string, unknown>;
+    passed: boolean;
+    attempt_no: number;
+    created_at: string;
+  }[];
   submitted_at?: string;
 }
 export interface News {

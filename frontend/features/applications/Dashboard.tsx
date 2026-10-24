@@ -3,8 +3,8 @@ import { Button } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { Plus, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { productName } from "../../shared/api/demo";
-import { data as demo } from "../../shared/api/data";
+import { productName } from "../../shared/api/catalog";
+import { data } from "../../shared/api/data";
 import type { Status } from "../../shared/api/types";
 import { date, money, shortId } from "../../shared/format";
 import {
@@ -47,7 +47,7 @@ export function Dashboard() {
   const { session } = useSession();
   const q = useQuery({
     queryKey: ["applications", session?.username],
-    queryFn: () => demo.applications(session!.username),
+    queryFn: () => data.applications(session!.username),
   });
   const a =
     q.data?.find(
@@ -56,7 +56,7 @@ export function Dashboard() {
   return (
     <>
       <PageTitle
-        title={`Добрый день, ${session?.displayName?.split(" ")[0] || "Александр"}`}
+        title={`Добрый день, ${session?.displayName?.split(" ")[0] || "предприниматель"}`}
         subtitle="Ваши заявки и возможности для бизнеса"
         action={
           <Button

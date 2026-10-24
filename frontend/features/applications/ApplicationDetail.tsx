@@ -27,8 +27,8 @@ import {
   Minus,
 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { productName, products } from "../../shared/api/demo";
-import { data as demo } from "../../shared/api/data";
+import { productName, products } from "../../shared/api/catalog";
+import { data } from "../../shared/api/data";
 import type { Application } from "../../shared/api/types";
 import {
   date,
@@ -49,7 +49,7 @@ import {
 import { CompanyInfo } from "../company/Company";
 import { DocumentList } from "../documents/Documents";
 import { Progress } from "./Dashboard";
-import { DemoError } from "../../shared/api/errors";
+import { ApiError } from "../../shared/api/errors";
 import { SuccessFeedback } from "../../components/ui/states";
 import { NextActionPanel } from "./NextActionPanel";
 import { BankDecisionBar } from "./BankDecisionBar";
@@ -61,7 +61,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["application", id, bank ? "bank" : session?.username],
-    queryFn: () => demo.application(id!, bank ? undefined : session!.username),
+    queryFn: () => data.application(id!, bank ? undefined : session!.username),
   });
   const [response, setResponse] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -69,17 +69,17 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
     "accept" | "decline" | "submit" | "complete" | null
   >(null);
   const [bankAction, setBankAction] = useState<
-    "offer" | "reject" | "info" | null
+    "approve" | "offer" | "reject" | "info" | null
   >(null);
   const mutation = useMutation({
     mutationFn: async () =>
       action === "complete"
-        ? demo.complete(id!, session!.username)
+        ? data.complete(id!, session!.username)
         : action === "submit"
-          ? demo.submit(id!)
+          ? data.submit(id!)
           : action
-            ? demo.respond(id!, action === "accept")
-            : demo.resubmit(id!, response),
+            ? data.respond(id!, action === "accept")
+            : data.resubmit(id!, response),
     onSuccess: async () => {
       setFeedback(
         action === "accept"
@@ -89,7 +89,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
             : action === "submit"
               ? "Заявка отправлена"
               : action === "complete"
-                ? "Демонстрационное оформление завершено"
+                ? "Оформление завершено"
                 : "Ответ отправлен",
       );
       setAction(null);
@@ -97,7 +97,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
       await qc.invalidateQueries();
     },
     onError: async (error) => {
-      if (error instanceof DemoError && error.status === 409)
+      if (error instanceof ApiError && error.status === 409)
         await qc.invalidateQueries();
     },
   });
@@ -317,15 +317,12 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                     <NextActionPanel application={a} />
                     {a.status === "ACCEPTED" && (
                       <Panel>
-                        <p>
-                          Предложение принято. Можно явно завершить локальный
-                          демосценарий без выдачи средств.
-                        </p>
+                        <p>Предложение принято. Завершите оформление заявки.</p>
                         <Button
                           variant="default"
                           onClick={() => setAction("complete")}
                         >
-                          Завершить демосценарий
+                          Завершить оформление
                         </Button>
                       </Panel>
                     )}
@@ -333,7 +330,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                 )}
                 {bank && a.risk && tab !== "risk" && (
                   <Panel className="score-overview">
-                    <span className="eyebrow">ДЕМО-СКОРИНГ</span>
+                    <span className="eyebrow">ОЦЕНКА РИСКА</span>
                     <div className="score-compact">
                       <strong>
                         {a.risk.score}
@@ -353,21 +350,8 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                     </Button>
                   </Panel>
                 )}
-                {bank && tab === "risk" && <VerificationPanel />}
-                {!bank && (
-                  <Panel>
-                    <ShieldCheck size={22} className="muted" />
-                    <h3>
-                      {session?.mode === "api"
-                        ? "Демонстрационный API"
-                        : "Автономный прототип"}
-                    </h3>
-                    <p>
-                      {session?.mode === "api"
-                        ? "Данные и документы сохраняются сервером проекта. Операции демонстрационные, средства не выдаются."
-                        : "Все операции демонстрационные. Изменения сохраняются только в браузере."}
-                    </p>
-                  </Panel>
+                {bank && tab === "risk" && (
+                  <VerificationPanel application={a} />
                 )}
               </aside>
             </div>
@@ -380,7 +364,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                   : action === "decline"
                     ? "Отклонить предложение?"
                     : action === "complete"
-                      ? "Завершить демонстрационный сценарий?"
+                      ? "Завершить оформление?"
                       : "Отправить заявку?"
               }
               centered
@@ -391,7 +375,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                   : action === "decline"
                     ? "Предложение будет закрыто. Для другого финансирования можно создать новую заявку."
                     : action === "complete"
-                      ? "Оформление будет помечено завершённым в демонстрации. Реальная выдача средств не выполняется."
+                      ? "Заявка будет переведена в статус «Завершена»."
                       : "После отправки изменить заявку можно только через запрос уточнений."}
               </p>
               <ErrorMessage error={mutation.error} />
@@ -435,7 +419,7 @@ function OfferPanel({
       </div>
       <p>{o.reason || "Комментарий банка не указан."}</p>
       <small className="muted">
-        Демонстрационные условия · не являются реальным банковским предложением.
+        Условия предложения зафиксированы сотрудником банка.
       </small>
       <OfferComparison application={a} />
       <Button
@@ -505,14 +489,14 @@ function RiskPanel({ application: a }: { application: Application }) {
                 ? "Высокий риск"
                 : "Средний риск"}
           </span>
-          <h3>Демонстрационная оценка</h3>
+          <h3>Оценка риска</h3>
           <p>{r.recommendation}</p>
         </div>
       </div>
       <span className="muted">Версия правил: {r.rules_version}</span>
       <p className="muted">
-        Источник: сведения компании в заявке. В этой демомодели больший балл
-        соответствует меньшему риску; оценка не является банковским решением.
+        Источник: сведения компании в заявке. Более высокий балл соответствует
+        меньшему риску; оценка не является банковским решением.
       </p>
       <p className="muted">
         Дата расчёта:{" "}
@@ -542,16 +526,14 @@ function RiskPanel({ application: a }: { application: Application }) {
           </div>
           <div>
             <strong>
-              {
-                (
-                  {
-                    MARGIN: "Финансовая устойчивость",
-                    DEBT_COVERAGE: "Долговая нагрузка",
-                    BUSINESS_AGE: "Возраст бизнеса",
-                    CREDIT_HISTORY: "Кредитная история",
-                  } as Record<string, string>
-                )[f.code] || f.code
-              }
+              {(
+                {
+                  MARGIN: "Финансовая устойчивость",
+                  DEBT_COVERAGE: "Долговая нагрузка",
+                  BUSINESS_AGE: "Возраст бизнеса",
+                  CREDIT_HISTORY: "Кредитная история",
+                } as Record<string, string>
+              )[f.code] || f.code}
             </strong>
             <p>{f.explanation}</p>
           </div>
@@ -567,19 +549,26 @@ function RiskPanel({ application: a }: { application: Application }) {
     </Panel>
   );
 }
-function VerificationPanel() {
+function VerificationPanel({ application }: { application: Application }) {
   return (
     <Panel>
       <h3>Автоматические проверки</h3>
-      {["Реестр", "БКИ", "Скоринг"].map((s) => (
-        <div className="verification" key={s}>
-          <strong>{s}</strong>
-          <span className="status status-COMPLETED">
-            {s === "Скоринг" ? "Рассчитан" : "Пройдена"}
+      {(application.verifications || []).map((v, i) => (
+        <div className="verification" key={i}>
+          <strong>{v.check_type}</strong>
+          <span
+            className={
+              "status status-" + (v.passed ? "COMPLETED" : "NEEDS_INFO")
+            }
+          >
+            {v.passed ? "Обработана" : "Требует внимания"}
           </span>
+          <p>{String(v.result.message || v.result.source || "")}</p>
         </div>
       ))}
-      <p className="muted">Демо-результаты. Проверки смоделированы локально.</p>
+      {!application.verifications?.length && (
+        <p className="muted">Результаты проверок ещё не получены.</p>
+      )}
     </Panel>
   );
 }
@@ -589,7 +578,7 @@ function BankAction({
   onClose,
 }: {
   application: Application;
-  action: "offer" | "reject" | "info" | null;
+  action: "approve" | "offer" | "reject" | "info" | null;
   onClose: () => void;
 }) {
   const { session } = useSession();
@@ -597,28 +586,35 @@ function BankAction({
   const p = products.find((p) => p.id === a.requested_terms.product_id)!;
   const [amount, setAmount] = useState(a.requested_terms.amount);
   const [term, setTerm] = useState(a.requested_terms.term_months);
-  const [rate, setRate] = useState("17.5");
-  const [reason, setReason] = useState("");
+  const [rate, setRate] = useState(p.annual_rate);
+  const approving = action === "approve";
+  const offering = approving || action === "offer";
+  const offerAmount = approving ? a.requested_terms.amount : amount;
+  const offerTerm = approving ? a.requested_terms.term_months : term;
+  const offerRate = approving ? p.annual_rate : rate;
+  const [reason, setReason] = useState(
+    approving ? "Одобрено на условиях клиента." : "",
+  );
   const [stage, setStage] = useState(false);
   const valid =
     reason.trim() &&
-    (action !== "offer" ||
-      (Number(amount) >= Number(p.min_amount) &&
-        Number(amount) <= Number(a.requested_terms.amount) &&
-        term >= p.min_term &&
-        term <= p.max_term &&
-        Number(rate) >= 0 &&
-        Number(rate) <= 100));
+    (!offering ||
+      (Number(offerAmount) >= Number(p.min_amount) &&
+        Number(offerAmount) <= Number(a.requested_terms.amount) &&
+        offerTerm >= p.min_term &&
+        offerTerm <= p.max_term &&
+        Number(offerRate) >= 0 &&
+        Number(offerRate) <= 100));
   const mutation = useMutation({
     mutationFn: () =>
       action === "info"
-        ? demo.requestInfo(a.id, reason, session!, a.version || 1)
-        : demo.decision(
+        ? data.requestInfo(a.id, reason, session!, a.version || 1)
+        : data.decision(
             a.id,
-            action === "offer" ? "OFFERED" : "REJECTED",
+            offering ? "OFFERED" : "REJECTED",
             reason,
-            action === "offer"
-              ? { amount, term_months: term, annual_rate: rate }
+            offering
+              ? { amount: offerAmount, term_months: offerTerm, annual_rate: offerRate }
               : undefined,
             session!,
             a.version || 1,
@@ -628,7 +624,7 @@ function BankAction({
       onClose();
     },
     onError: async (error) => {
-      if (error instanceof DemoError && error.status === 409) {
+      if (error instanceof ApiError && error.status === 409) {
         await qc.invalidateQueries();
         setStage(false);
       }
@@ -639,8 +635,10 @@ function BankAction({
       opened={!!action}
       onClose={onClose}
       title={
-        action === "offer"
-          ? "Предложить условия"
+        approving
+          ? "Одобрить на условиях клиента"
+          : action === "offer"
+          ? "Предложить другие условия"
           : action === "reject"
             ? "Отказ по заявке"
             : "Запросить дополнительные сведения"
@@ -658,8 +656,8 @@ function BankAction({
             title="Подтвердите действие"
           >
             <p>
-              {action === "offer"
-                ? `Предложение: ${money(amount)}, ${term} мес., ${rate}% годовых.`
+              {offering
+                ? `${approving ? "Одобрение на условиях клиента" : "Предложение"}: ${money(offerAmount)}, ${offerTerm} мес., ${offerRate}% годовых.`
                 : action === "reject"
                   ? "Заявка будет отклонена."
                   : "Клиент получит запрос сведений."}
@@ -685,6 +683,20 @@ function BankAction({
         </>
       ) : (
         <>
+          {approving && (
+            <>
+              <Metrics items={[
+                ["Сумма по заявке", money(offerAmount)],
+                ["Срок по заявке", `${offerTerm} мес.`],
+                ["Годовая ставка", `${offerRate}%`],
+              ]} />
+              <p className="muted">
+                Сумма и срок сохраняются как в заявке клиента. Ставка берётся
+                из выбранного кредитного продукта. После одобрения клиент
+                сможет подтвердить условия в своём кабинете.
+              </p>
+            </>
+          )}
           {action === "offer" && (
             <div className="form-grid">
               <NumberInput

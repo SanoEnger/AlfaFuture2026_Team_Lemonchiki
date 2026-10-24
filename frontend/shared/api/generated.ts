@@ -1,182 +1,43 @@
 // Generated from backend/openapi.json. Run npm.cmd run generate:api; do not edit.
 export interface ApiSchemas {
-  ApplicationResponse: {
-    id: string;
-    status: ApiSchemas["Status"];
-    requested_terms: ApiSchemas["TermsResponse"];
-    company: ApiSchemas["CompanyResponse"];
-    updated_at: string;
-    next_action: string;
-    latest_offer?: ApiSchemas["OfferResponse"] | null;
-  };
-  BankApplicationResponse: {
-    application: ApiSchemas["ApplicationResponse"];
-    risk: ApiSchemas["RiskAssessmentResponse"] | null;
-    verifications: Array<ApiSchemas["VerificationResponse"]>;
-    information_requests: Array<ApiSchemas["InfoRequestResponse"]>;
-    events: Array<ApiSchemas["EventResponse"]>;
-    documents: Array<ApiSchemas["DocumentResponse"]>;
-  };
-  BankDecisionRequest: {
-    type: string;
-    offered_amount?: number | string | null;
-    offered_term_months?: number | null;
-    offered_annual_rate?: number | string | null;
-    reason: string;
-  };
-  Body_upload_document_api_v1_applications__application_id__documents_post: {
-    file: string;
-  };
-  CompanyDetailsUpdate: {
-    legal_name?: string | null;
-    inn?: string | null;
-    form?: string | null;
-  };
-  CompanyPatch: {
-    details?: ApiSchemas["CompanyDetailsUpdate"] | null;
-    financials?: ApiSchemas["FinancialUpdate"] | null;
-    industry?: string | null;
-  };
-  CompanyResponse: {
-    id: string;
-    inn: string;
-    legal_name: string;
-    form: string;
-    industry: string;
-    months_active: number;
-    revenue: string;
-    expenses: string;
-    debt_payment: string;
-  };
-  CreateApplicationRequest: {
-    product_id: string;
-    amount: number | string;
-    term_months: number;
-    purpose: string;
-    company_financials?: ApiSchemas["FinancialUpdate"] | null;
-  };
-  CurrentUserResponse: {
-    id: string;
-    username: string;
-    role: string;
-    onboarding_complete: boolean;
-  };
-  DemoLoginRequest: { username: string; password: string };
-  DocumentResponse: {
-    id: string;
-    file_name: string;
-    mime_type: string;
-    size_bytes: number;
-    created_at: string;
-  };
-  ErrorResponse: {
-    error_code: string;
-    message: string;
-    details?: unknown | null;
-  };
-  EventResponse: {
-    id: string;
-    actor_id: string | null;
-    from_status: string | null;
-    to_status: string;
-    reason: string;
-    occurred_at: string;
-  };
-  FinancialUpdate: {
-    revenue: number | string;
-    expenses: number | string;
-    debt_payment: number | string;
-    months_active: number;
-  };
-  HTTPValidationError: { detail?: Array<ApiSchemas["ValidationError"]> };
-  InfoRequestInput: { message: string };
-  InfoRequestResponse: {
-    id: string;
-    message: string;
-    status: string;
-    created_at: string;
-    resolved_at: string | null;
-  };
-  NewsResponse: {
-    id: string;
-    title: string;
-    body: string;
-    target_industry: string | null;
-    target_purpose: string | null;
-  };
-  OfferResponse: {
-    amount: string;
-    term_months: number;
-    annual_rate: string;
-    reason: string;
-    created_at: string;
-  };
-  PatchApplicationRequest: {
-    product_id?: string | null;
-    amount?: number | string | null;
-    term_months?: number | null;
-    purpose?: string | null;
-    company_financials?: ApiSchemas["FinancialUpdate"] | null;
-  };
-  ProductResponse: {
-    id: string;
-    code: string;
-    name: string;
-    purpose: string;
-    min_amount: string;
-    max_amount: string;
-    min_term: number;
-    max_term: number;
-    annual_rate: string;
-  };
-  ResubmitRequest: {
-    company_financials?: ApiSchemas["FinancialUpdate"] | null;
-    company_details?: ApiSchemas["CompanyDetailsUpdate"] | null;
-    response_message?: string | null;
-  };
-  RiskAssessmentResponse: {
-    score: number;
-    risk_level: string;
-    factors: Array<unknown>;
-    recommendation: string;
-    rules_version: string;
-    attempt_no: number;
-    created_at: string;
-  };
-  Status:
-    | "DRAFT"
-    | "SUBMITTED"
-    | "VERIFYING"
-    | "NEEDS_INFO"
-    | "UNDER_REVIEW"
-    | "OFFERED"
-    | "REJECTED"
-    | "ACCEPTED"
-    | "DECLINED"
-    | "COMPLETED";
-  StatusResponse: {
-    application_id: string;
-    current_status: ApiSchemas["Status"];
-    next_action: string;
-  };
-  SubmitResponse: {
-    application_id: string;
-    current_status: ApiSchemas["Status"];
-    checks_status: string;
-  };
-  TermsResponse: {
-    amount: string;
-    term_months: number;
-    purpose: string;
-    product_id: string;
-  };
-  TokenResponse: { access_token: string; token_type?: string; role: string };
-  ValidationError: { loc: Array<string | number>; msg: string; type: string };
-  VerificationResponse: {
-    check_type: string;
-    result: Record<string, unknown>;
-    passed: boolean;
-    attempt_no: number;
-    created_at: string;
-  };
+  "AcceptInvitation": { "token": string; "password": string; "name": string };
+  "ApplicationResponse": { "id": string; "status": ApiSchemas["Status"]; "requested_terms": ApiSchemas["TermsResponse"]; "company": ApiSchemas["CompanyResponse"]; "updated_at": string; "next_action": string; "latest_offer"?: (ApiSchemas["OfferResponse"] | null); "version"?: number; "assigned_officer_id"?: (string | null); "assigned_officer_name"?: (string | null) };
+  "Assignment": { "officer_id"?: (string | null); "expected_version"?: (number | null) };
+  "BankApplicationResponse": { "application": ApiSchemas["ApplicationResponse"]; "risk": (ApiSchemas["RiskAssessmentResponse"] | null); "verifications": Array<ApiSchemas["VerificationResponse"]>; "information_requests": Array<ApiSchemas["InfoRequestResponse"]>; "events": Array<ApiSchemas["EventResponse"]>; "documents": Array<ApiSchemas["DocumentResponse"]> };
+  "BankDecisionRequest": { "expected_version"?: (number | null); "type": string; "offered_amount"?: (number | string | null); "offered_term_months"?: (number | null); "offered_annual_rate"?: (number | string | null); "reason": string };
+  "Body_upload_document_api_v1_applications__application_id__documents_post": { "file": string };
+  "ChangePassword": { "current_password": string; "password": string };
+  "CompanyDetailsUpdate": { "legal_name"?: (string | null); "inn"?: (string | null); "form"?: (string | null) };
+  "CompanyPatch": { "details"?: (ApiSchemas["CompanyDetailsUpdate"] | null); "financials"?: (ApiSchemas["FinancialUpdate"] | null); "industry"?: (string | null) };
+  "CompanyResponse": { "id": string; "inn": string; "legal_name": string; "form": string; "industry": string; "months_active": number; "revenue": string; "expenses": string; "debt_payment": string };
+  "CreateApplicationRequest": { "product_id": string; "amount": (number | string); "term_months": number; "purpose": string; "comment"?: string; "company_financials"?: (ApiSchemas["FinancialUpdate"] | null) };
+  "CreateCompany": { "revenue": (number | string); "expenses": (number | string); "debt_payment": (number | string); "months_active": number; "legal_name": string; "inn": string; "form": string; "industry": string };
+  "CurrentUserResponse": { "id": string; "username": string; "role": string; "onboarding_complete": boolean; "email"?: (string | null); "display_name"?: string; "status"?: string };
+  "DemoLoginRequest": { "username": string; "password": string };
+  "DocumentResponse": { "id": string; "file_name": string; "mime_type": string; "size_bytes": number; "created_at": string };
+  "EmailInput": { "email": string };
+  "ErrorResponse": { "error_code": string; "message": string; "details"?: (unknown | null) };
+  "EventResponse": { "id": string; "actor_id": (string | null); "from_status": (string | null); "to_status": string; "reason": string; "occurred_at": string };
+  "FinancialUpdate": { "revenue": (number | string); "expenses": (number | string); "debt_payment": (number | string); "months_active": number };
+  "HTTPValidationError": { "detail"?: Array<ApiSchemas["ValidationError"]> };
+  "InfoRequestInput": { "expected_version"?: (number | null); "message": string };
+  "InfoRequestResponse": { "id": string; "message": string; "status": string; "created_at": string; "resolved_at": (string | null) };
+  "Login": { "email": string; "password": string };
+  "NewsResponse": { "id": string; "title": string; "body": string; "target_industry": (string | null); "target_purpose": (string | null) };
+  "OfferResponse": { "amount": string; "term_months": number; "annual_rate": string; "reason": string; "created_at": string };
+  "PatchApplicationRequest": { "comment"?: (string | null); "expected_version"?: (number | null); "product_id"?: (string | null); "amount"?: (number | string | null); "term_months"?: (number | null); "purpose"?: (string | null); "company_financials"?: (ApiSchemas["FinancialUpdate"] | null) };
+  "ProductResponse": { "id": string; "code": string; "name": string; "purpose": string; "min_amount": string; "max_amount": string; "min_term": number; "max_term": number; "annual_rate": string };
+  "Profile": { "name": string };
+  "Register": { "name": string; "email": string; "password": string };
+  "Reset": { "token": string; "password": string };
+  "ResubmitRequest": { "company_financials"?: (ApiSchemas["FinancialUpdate"] | null); "company_details"?: (ApiSchemas["CompanyDetailsUpdate"] | null); "response_message"?: (string | null) };
+  "RiskAssessmentResponse": { "score": number; "risk_level": string; "factors": Array<unknown>; "recommendation": string; "rules_version": string; "attempt_no": number; "created_at": string };
+  "Status": "DRAFT" | "SUBMITTED" | "VERIFYING" | "NEEDS_INFO" | "UNDER_REVIEW" | "OFFERED" | "REJECTED" | "ACCEPTED" | "DECLINED" | "COMPLETED";
+  "StatusResponse": { "application_id": string; "current_status": ApiSchemas["Status"]; "next_action": string };
+  "SubmitResponse": { "application_id": string; "current_status": ApiSchemas["Status"]; "checks_status": string };
+  "TermsResponse": { "comment"?: string; "amount": string; "term_months": number; "purpose": string; "product_id": string };
+  "TokenInput": { "token": string };
+  "TokenResponse": { "access_token": string; "token_type"?: string; "role": string };
+  "ValidationError": { "loc": Array<(string | number)>; "msg": string; "type": string };
+  "VerificationResponse": { "check_type": string; "result": Record<string, unknown>; "passed": boolean; "attempt_no": number; "created_at": string };
 }

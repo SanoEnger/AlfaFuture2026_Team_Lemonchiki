@@ -1,93 +1,80 @@
-# Backend REST API v0.1
+# ФинМаршрут — REST API
 
-Основание: раздел 8 ТЗ Альфа-хакатона 2026. Базовый префикс **`/api/v1`**. Каноническая схема для фронта в `openapi.json`. Только синтетические данные.
+Платформа кредитования бизнеса. Базовый префикс: `/api/v1`. Полная актуальная схема: [openapi.json](../openapi.json). Фронтенд использует серверные данные и cookie-сеансы.
 
-## Маршруты
+## Авторизация и аккаунты
 
-| Метод | Путь | Роль | Назначение |
-|---|---|---|---|
-| POST | `/auth/demo-login` | публичный | Bearer токен демо-учётки |
-| GET | `/products` | CLIENT | кредитные продукты |
-| GET | `/business/me` | CLIENT | карточка компании |
-| GET | `/news` | CLIENT | синтетические новости по отрасли/цели |
-| GET | `/applications` | CLIENT | собственные заявки |
-| POST | `/applications` | CLIENT | новый черновик |
-| PATCH | `/applications/{id}` | CLIENT | изменить черновик |
-| GET | `/applications/{id}` | CLIENT | статус, оффер, исходные условия |
-| POST | `/applications/{id}/submit` | CLIENT | первая подача и проверки |
-| POST | `/applications/{id}/documents` | CLIENT | PDF до 5 МиБ |
-| POST | `/applications/{id}/resubmit` | CLIENT | ответ на уточнение + новый скоринг |
-| GET | `/applications/{id}/history` | CLIENT | журнал событий |
-| POST | `/applications/{id}/accept` | CLIENT | принять предложение |
-| POST | `/applications/{id}/decline` | CLIENT | отклонить предложение |
-| GET | `/bank/applications` | BANK_EMPLOYEE | банковская очередь `?status=UNDER_REVIEW` |
-| GET | `/bank/applications/{id}` | BANK_EMPLOYEE | подробности, риск, документы |
-| POST | `/bank/applications/{id}/request-info` | BANK_EMPLOYEE | запрос сведений |
-| POST | `/bank/applications/{id}/decision` | BANK_EMPLOYEE | OFFERED/REJECTED |
-| GET | `/bank/applications/{id}/documents/{doc_id}` | BANK_EMPLOYEE | просмотреть PDF (дополнение для кабинета банка) |
+Для команды сначала получить `GET /auth/csrf`, затем передать cookie и заголовок `X-CSRF-Token`. Браузер отправляет `credentials: include`. Cookie сеанса HttpOnly; значение токена авторизации в localStorage и sessionStorage не хранится.
 
-## Примеры JSON
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | /auth/csrf | подписанный CSRF-токен |
+| POST | /auth/register | регистрация CLIENT, письмо подтверждения |
+| POST | /auth/verify-email | одноразовое подтверждение |
+| POST | /auth/verify-email/resend | новое письмо |
+| POST | /auth/login | email или прежний логин + пароль, cookie-сеанс |
+| GET | /auth/me | роль, имя, email, статус настройки компании |
+| POST | /auth/logout | отзыв сеанса, очистка cookie |
+| POST | /auth/password/forgot | письмо восстановления |
+| POST | /auth/password/reset | одноразовая смена пароля с отзывом сеансов |
+| PATCH | /auth/profile | изменение имени |
+| POST | /auth/password/change | текущий и новый пароль, отзыв сеансов |
+| POST | /auth/invitations/inspect | проверка одноразового приглашения |
+| POST | /auth/invitations/accept | активация BANK_OFFICER |
 
-### Создание черновика
+Первый BANK_ADMIN создаётся исключительно серверной командой `python -m app.manage create-admin`. Публичная регистрация не принимает роль.
 
-```json
-{
-  "product_id": "<UUID из GET /products>",
-  "amount": "400000.00",
-  "term_months": 12,
-  "purpose": "WORKING_CAPITAL",
-  "company_financials": {
-    "revenue": "1400000.00", "expenses": "650000.00",
-    "debt_payment": "50000.00", "months_active": 48
-  }
-}
-```
+## Бизнес и кредитные заявки
 
-`POST /applications` возвращает `201` и объект:
+| Метод | Путь | Роль / назначение |
+|---|---|---|
+| GET | /catalog | все авторизованные роли, каталог |
+| GET | /products | CLIENT, прежний каталог |
+| POST | /organizations | CLIENT, первичная настройка компании |
+| GET, PATCH | /business/me | CLIENT, собственная компания |
+| GET | /news | CLIENT, материалы по отрасли/цели |
+| GET, POST | /applications | CLIENT, свои заявки / создание черновика |
+| GET, PATCH | /applications/{id} | CLIENT, карточка / изменение DRAFT |
+| POST | /applications/{id}/submit | CLIENT, первая подача |
+| POST | /applications/{id}/resubmit | CLIENT, ответ на запрос |
+| GET | /applications/{id}/history | CLIENT, история |
+| GET, POST | /applications/{id}/documents | CLIENT, список / PDF до 5 МиБ |
+| GET | /applications/{id}/documents/{documentId}/download | CLIENT, скачивание своего файла |
+| GET | /applications/{id}/information-requests | CLIENT, запросы сведений |
+| POST | /applications/{id}/accept | CLIENT, принятие предложения |
+| POST | /applications/{id}/decline | CLIENT, отказ от предложения |
+| POST | /applications/{id}/complete | CLIENT, явное завершение после ACCEPTED |
+| GET | /bank/applications | банковские роли, очередь |
+| GET | /bank/applications/{id} | банковские роли, карточка с проверками и риском |
+| GET | /bank/officers | банковские роли, ответственные сотрудники |
+| POST | /bank/applications/{id}/claim | сотрудник, атомарно взять свободную заявку |
+| POST | /bank/applications/{id}/assign | BANK_ADMIN, назначить активного сотрудника |
+| POST | /bank/applications/{id}/request-info | назначенный сотрудник, запрос сведений |
+| POST | /bank/applications/{id}/decision | назначенный сотрудник, OFFERED / REJECTED |
+| GET | /bank/applications/{id}/documents/{documentId} | банковские роли, скачивание PDF |
+| GET | /admin/staff | BANK_ADMIN, сотрудники |
+| GET, POST | /admin/staff/invitations | BANK_ADMIN, список / приглашение |
+| POST | /admin/staff/invitations/{id}/revoke | BANK_ADMIN, отзыв приглашения |
+| POST | /admin/staff/{id}/suspend | BANK_ADMIN, блокировка и отзыв сеансов |
+| POST | /admin/staff/{id}/reactivate | BANK_ADMIN, восстановление доступа |
+| GET | /admin/audit | BANK_ADMIN, аудит |
 
-```json
-{
-  "id": "<UUID>", "status": "DRAFT",
-  "requested_terms": {
-    "amount": "400000.00", "term_months": 12,
-    "purpose": "WORKING_CAPITAL", "product_id": "<UUID>"
-  },
-  "company": {"id":"<UUID>", "inn":"7701234567", "legal_name":"ООО Демо-Пекарня", "form":"ООО", "industry":"FOOD", "months_active":48, "revenue":"1400000.00", "expenses":"650000.00", "debt_payment":"50000.00"},
-  "updated_at":"2026-10-20T10:00:00Z",
-  "next_action":"Заполните заявку и нажмите «Отправить»", "latest_offer":null
-}
-```
+BANK_ADMIN читает кредитные данные и управляет назначениями, но не принимает кредитные решения. BANK_EMPLOYEE сохранена для совместимости; новые приглашения создают BANK_OFFICER.
 
-### Банковское предложение
+## Контракты и совместимость
 
-```json
-{"type":"OFFERED", "offered_amount":"350000.00", "offered_term_months":12, "offered_annual_rate":"17.50", "reason":"Предложение банка"}
-```
+Суммы и ставки передаются десятичными строками. Время — ISO 8601 UTC. `ApplicationResponse.version` — ревизия для оптимистической блокировки; команды могут передавать `expected_version`. Счётчик `loan_applications.version` в БД по-прежнему обозначает попытку проверок, новая колонка `revision` обслуживает блокировку.
 
-Отказ: `{"type":"REJECTED", "reason":"Причина отказа"}`. Банк не меняет сумму/срок, первоначально запрошенные клиентом.
+Запрошенные условия отделены от предложения. Финансовый снимок отправленной заявки не изменяется при редактировании профиля компании. Чужая заявка возвращает 404. Блокировки строк предотвращают двойное назначение и конкурирующие решения.
 
-### Ответ клиента на запрос
+Прежний JWT-маршрут и параметр автоматического завершения сохранены в OpenAPI для совместимости существующих клиентов. Новые экраны ими не авторизуются: используется `/auth/login`. Принятие в интерфейсе выполняется отдельно от `/complete`.
 
-```json
-{
-  "response_message": "Уточнил реквизиты и приложил PDF",
-  "company_details": {"legal_name": "ООО Демо-Пекарня", "inn": "7701234567"},
-  "company_financials": {"revenue":"1400000.00", "expenses":"650000.00", "debt_payment":"50000.00", "months_active":48}
-}
-```
+В обычном запуске проверяется формат сохранённых реквизитов, внешние реестр и БКИ не подключены. Их отсутствие отражается в JSON результата. Неподтверждённые сведения не дают положительных баллов; требуется ручное решение.
 
-Поля уточнения опциональны. Но нужно предоставить минимум один ответ: новый документ, сообщение или изменение данных. Для загрузки PDF используется `multipart/form-data`, поле `file`.
-
-## Формат ошибок
+## Ошибки
 
 ```json
-{"error_code":"INVALID_TRANSITION", "message":"Переход ... недопустим", "details":null}
+{"error_code":"INVALID_TRANSITION","message":"Переход недопустим","details":null}
 ```
 
-- `401` UNAUTHORIZED: токен отсутствует или неверный.
-- `403` FORBIDDEN: роль не имеет прав.
-- `404` NOT_FOUND: объект не найден или принадлежит другому клиенту.
-- `409` INVALID_TRANSITION / DUPLICATE_OPERATION: переход запрещён или операция уже выполнена.
-- `422` VALIDATION_ERROR: неверная сумма, срок, формат PDF, отсутствующие обязательные параметры.
-
-**Финансы:** десятичные строки, не `float`. **Время:** ISO 8601 UTC. **Авторизация:** `Authorization: Bearer <JWT>`. **Сценарий:** создать DRAFT, submit, посмотреть банк, предложить условия, accept, проверить историю.
+401 — требуется вход; 403 — нет прав / неверный CSRF; 404 — объект не найден или чужой; 409 — конфликт состояния или ревизии; 422 — неверные поля; 429 — слишком много попыток; 503 — письмо не удалось отправить.
