@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Modal, Select } from "@mantine/core";
-import { FileText, Upload, Eye } from "lucide-react";
-import { Link } from "react-router-dom";
+import { FileText, Upload, Eye, Download } from "lucide-react";
+import { isServerMode } from "../../shared/api/data";
+import { server } from "../../shared/api/server";
+import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../../app/session";
-import { demo } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { Application, Document } from "../../shared/api/types";
 import { date, shortId } from "../../shared/format";
+import { DocumentChecklist } from "./DocumentChecklist";
 import {
   Empty,
   ErrorMessage,
@@ -24,12 +27,20 @@ export function DocumentList({
   const input = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Document | null>(null);
+  const [downloadError, setDownloadError] = useState<Error | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const mutation = useMutation({
     mutationFn: (f: File) => demo.upload(application.id, f),
     onSuccess: () => qc.invalidateQueries(),
   });
   const canUpload =
     !bank && ["DRAFT", "NEEDS_INFO"].includes(application.status);
+  function upload(file: File) {
+    if (!canUpload || mutation.isPending) return;
+    setLastFile(file);
+    mutation.mutate(file);
+  }
   return (
     <>
       <div className="section-title">
@@ -47,7 +58,7 @@ export function DocumentList({
               aria-label="Выбрать PDF"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) mutation.mutate(file);
+                if (file) upload(file);
                 e.target.value = "";
               }}
             />
@@ -63,12 +74,35 @@ export function DocumentList({
           </>
         )}
       </div>
+      <DocumentChecklist application={application} />
+      {canUpload && (
+        <div
+          className="document-dropzone"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) upload(file);
+          }}
+        >
+          <p>Перетащите PDF сюда или выберите файл кнопкой «Добавить PDF»</p>
+          <small>
+            До 5 МБ. Запрос остаётся открытым до отправки ответа банку.
+          </small>
+        </div>
+      )}
       {!bank && !canUpload && (
         <p className="muted">
           Добавление документов доступно в черновике и при запросе уточнений.
         </p>
       )}
       <ErrorMessage error={mutation.error} />
+      <ErrorMessage error={downloadError} />
+      {mutation.isError && lastFile && canUpload && (
+        <Button variant="default" onClick={() => upload(lastFile)}>
+          Повторить загрузку
+        </Button>
+      )}
       {mutation.isSuccess && (
         <p className="success-text" role="status">
           Документ добавлен
@@ -93,6 +127,31 @@ export function DocumentList({
               >
                 <Eye size={17} />
               </Button>
+              {isServerMode() && (
+                <Button
+                  aria-label={`Скачать ${d.file_name}`}
+                  variant="subtle"
+                  loading={downloading === d.id}
+                  onClick={async () => {
+                    setDownloading(d.id);
+                    setDownloadError(null);
+                    try {
+                      await server.download(
+                        application.id,
+                        d.id,
+                        d.file_name,
+                        bank,
+                      );
+                    } catch (e) {
+                      setDownloadError(e as Error);
+                    } finally {
+                      setDownloading(null);
+                    }
+                  }}
+                >
+                  <Download size={17} />
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -105,10 +164,12 @@ export function DocumentList({
           </p>
         </Empty>
       )}
-      <p className="muted">
-        Демо-режим: сохраняются только сведения о файле. Содержимое PDF не
-        хранится и не отправляется на сервер.
-      </p>
+      {!isServerMode() && (
+        <p className="muted">
+          Демо-режим: сохраняются только сведения о файле. Содержимое PDF не
+          хранится и не отправляется на сервер.
+        </p>
+      )}
       <Modal
         opened={!!selected}
         onClose={() => setSelected(null)}
@@ -124,8 +185,9 @@ export function DocumentList({
               {date(selected.created_at)}
             </p>
             <Alert color="gray">
-              В автономном прототипе доступна карточка файла. Просмотр
-              содержимого PDF не предусмотрен.
+              {isServerMode()
+                ? "Содержимое файла доступно по кнопке скачивания после проверки сервером прав на заявку."
+                : "В автономном прототипе доступна карточка файла. Просмотр содержимого PDF не предусмотрен."}
             </Alert>
           </>
         )}
@@ -139,7 +201,8 @@ export function Documents() {
     queryKey: ["applications", session?.username],
     queryFn: () => demo.applications(session!.username),
   });
-  const [id, setId] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const id = params.get("application");
   const a = q.data?.find((a) => a.id === id) || q.data?.[0];
   return (
     <>
@@ -154,7 +217,17 @@ export function Documents() {
               className="application-select"
               label="Заявка"
               value={a.id}
-              onChange={setId}
+              onChange={(id) =>
+                setParams(
+                  (current) => {
+                    const next = new URLSearchParams(current);
+                    if (id) next.set("application", id);
+                    else next.delete("application");
+                    return next;
+                  },
+                  { replace: true },
+                )
+              }
               data={q.data!.map((a) => ({
                 value: a.id,
                 label: `№${shortId(a.id)} · ${a.company.legal_name}`,

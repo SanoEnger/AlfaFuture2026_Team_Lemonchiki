@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Button, Modal } from "@mantine/core";
+import { CompanyEditor } from "./CompanyEditor";
 import { Building2, BadgeCheck } from "lucide-react";
 import { useSession } from "../../app/session";
-import { demo } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import { industryName, money } from "../../shared/format";
 import {
   PageTitle,
@@ -72,6 +75,7 @@ export function CompanyInfo({ company: c }: { company: CompanyData }) {
   );
 }
 export function Company() {
+  const [editing, setEditing] = useState(false);
   const { session } = useSession();
   const q = useQuery({
     queryKey: ["company", session?.username],
@@ -82,12 +86,28 @@ export function Company() {
       <PageTitle
         title="Моя компания"
         subtitle="Реквизиты и финансовые показатели бизнеса"
+        action={
+          <Button variant="default" onClick={() => setEditing(true)}>
+            Редактировать компанию
+          </Button>
+        }
       />
       <QueryState query={q}>
         <div className="stack">
           {q.data && <CompanyInfo company={q.data} />}
         </div>
       </QueryState>
+      <Modal
+        opened={editing}
+        onClose={() => setEditing(false)}
+        title="Редактирование компании"
+        size="lg"
+        centered
+      >
+        {q.data && (
+          <CompanyEditor initial={q.data} onSaved={() => setEditing(false)} />
+        )}
+      </Modal>
     </>
   );
 }

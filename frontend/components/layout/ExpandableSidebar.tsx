@@ -34,6 +34,10 @@ export function ExpandableSidebar({
   const [dismissed, setDismissed] = useState(false);
   const rail = useRef<HTMLElement>(null);
   const touchTrigger = useRef<HTMLButtonElement>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
   const expanded =
     !mobile &&
     (pinned || (!dismissed && (hovered || keyboardOpen || touchOpen)));
@@ -117,6 +121,8 @@ export function ExpandableSidebar({
               aria-label={pinned ? "Открепить меню" : "Закрепить меню"}
               aria-pressed={pinned}
               onClick={() => {
+                clearTimeout(hoverTimer.current);
+                if (rail.current?.matches(":hover")) setHovered(true);
                 onPinnedChange(!pinned);
                 setKeyboardOpen(false);
               }}
@@ -186,10 +192,14 @@ export function ExpandableSidebar({
           onPointerEnter={(e) => {
             if (e.pointerType === "mouse" && !coarse) {
               setDismissed(false);
-              setHovered(true);
+              clearTimeout(hoverTimer.current);
+              hoverTimer.current = setTimeout(() => setHovered(true), 180);
             }
           }}
-          onPointerLeave={() => setHovered(false)}
+          onPointerLeave={() => {
+            clearTimeout(hoverTimer.current);
+            hoverTimer.current = setTimeout(() => setHovered(false), 280);
+          }}
           onFocusCapture={(e) => {
             if (
               e.target.matches(":focus-visible") &&

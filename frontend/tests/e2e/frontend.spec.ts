@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, role = "Предприниматель · ООО «Вектор»") {
-  await page.goto("/login");
+  await page.goto("/demo-login");
   await page.getByRole("textbox", { name: "Демо-сценарий" }).click();
   await page.getByRole("option", { name: role, exact: true }).click();
   await page.getByRole("button", { name: "Войти в кабинет" }).click();
@@ -30,6 +30,9 @@ test("весь путь: мастер → уточнение → оффер → 
   ).toBeVisible();
   await switchRole(page, "Сотрудник банка");
   await page.goto(`/bank/applications/${id}`);
+  await page
+    .getByRole("button", { name: "Взять в работу", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Запросить сведения", exact: true })
     .click();
@@ -65,6 +68,10 @@ test("весь путь: мастер → уточнение → оффер → 
   await page.goto(`/client/applications/${id}`);
   await expect(page.getByRole("cell", { name: "350 000 ₽" })).toBeVisible();
   await page.getByRole("button", { name: "Принять предложение" }).click();
+  await page.getByRole("button", { name: "Подтвердить", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Завершить демосценарий", exact: true })
+    .click();
   await page.getByRole("button", { name: "Подтвердить", exact: true }).click();
   await expect(
     page.getByText("Оформление завершено", { exact: true }),
@@ -104,7 +111,7 @@ test("экраны, темы, мобильная ширина и отсутст�
       fullPage: true,
     });
   }
-  await page.goto('/client/settings');
+  await page.goto("/client/settings");
   await page.getByRole("button", { name: "Светлая", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute(
     "data-mantine-color-scheme",

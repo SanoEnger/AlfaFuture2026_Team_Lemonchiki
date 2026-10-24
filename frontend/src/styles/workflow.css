@@ -1,0 +1,182 @@
+:root {
+  --table-row-height: 56px;
+  --section-gap: 24px;
+  --data-cell-padding: 14px 18px;
+}
+:root[data-density="compact"] {
+  --table-row-height: 44px;
+  --section-gap: 18px;
+  --data-cell-padding: 10px 14px;
+}
+.data-table td {
+  height: var(--table-row-height);
+  padding: var(--data-cell-padding);
+}
+.data-table .numeric-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+.table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+.table-panel .table-scroll {
+  max-height: 70vh;
+}
+.stack {
+  gap: var(--section-gap);
+}
+.next-action-description {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.next-action-panel {
+  min-width: 0;
+}
+.bank-decision-bar {
+  position: sticky;
+  top: 84px;
+  z-index: 2;
+}
+.offer-table .offer-changed {
+  background: var(--hover);
+  font-weight: 600;
+}
+.offer-table small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+.offer-table th[scope="row"] {
+  font-weight: 500;
+  text-align: left;
+}
+.document-dropzone {
+  padding: 18px;
+  margin: 12px 0;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.document-dropzone p {
+  margin: 0 0 6px;
+}
+.document-dropzone small,
+.checklist-item small {
+  color: var(--muted);
+}
+.checklist-item {
+  border-left: 3px solid var(--border);
+  padding: 10px 14px;
+  margin: 10px 0;
+}
+.state-skeleton {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  min-height: 180px;
+}
+.credit-ai__questions-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ai-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0 6px;
+}
+.credit-ai__shortcut-list[hidden] {
+  display: none;
+}
+.document-row strong,
+.company-heading h2 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 768px) {
+  .bank-decision-bar {
+    position: static;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  .data-table .numeric-cell {
+    text-align: left;
+  }
+  .offer-table {
+    min-width: 330px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .document-dropzone,
+  .data-table tr {
+    transition: none;
+  }
+}
+.auth-page .login-form {
+  max-height: none;
+  width: min(100%, 480px);
+}
+.auth-page form {
+  display: grid;
+  gap: 16px;
+}
+.auth-demo-notice {
+  margin: 16px 0;
+}
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 18px;
+  font-size: 13px;
+}
+.demo-mail {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.admin-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.admin-tabs a {
+  padding: 12px 0;
+  white-space: nowrap;
+}
+.admin-tabs a[aria-current="page"] {
+  border-bottom: 2px solid var(--accent);
+  font-weight: 600;
+}
+.admin-record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.admin-record > div {
+  min-width: 0;
+}
+.settings-stack form {
+  display: grid;
+  gap: 16px;
+}
+@media (max-width: 768px) {
+  .auth-page .login-form {
+    width: 100%;
+  }
+  .admin-record {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, bank = false) {
-  await page.goto("/login");
+  await page.goto("/demo-login");
   if (bank) {
     await page.getByRole("textbox", { name: "Демо-сценарий" }).click();
     await page
@@ -101,7 +101,7 @@ test("Tab, Enter, Space, Escape и reduced motion", async ({ page }) => {
   await expect(page).toHaveURL(/client\/applications$/);
   await page.keyboard.press("Tab");
   await page.keyboard.press("Space");
-  await expect(page).toHaveURL(/client\/applications\/new$/);
+  await expect(page).toHaveURL(/client\/applications\/new(?:\?|$)/);
   await page
     .getByRole("button", { name: "Закрепить меню", exact: true })
     .focus();
@@ -138,7 +138,9 @@ test("пункты клиента и представления банка", asy
     await rail.hover();
     await width(page, 224);
     await rail.getByRole("link", { name, exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/client/${path}$`));
+    await expect
+      .poll(() => new URL(page.url()).pathname)
+      .toBe(`/client/${path}`);
     await expect(rail.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(rail.getByRole("link", { name, exact: true })).toHaveAttribute(
       "aria-current",
@@ -156,7 +158,9 @@ test("пункты клиента и представления банка", asy
     await rail.hover();
     await width(page, 224);
     await rail.getByRole("link", { name, exact: true }).click();
-    await expect(page.locator("main.content h1")).toHaveText(name==='Настройки'?'Настройки оформления':name);
+    await expect(page.locator("main.content h1")).toHaveText(
+      name === "Настройки" ? "Настройки оформления" : name,
+    );
     await expect(rail.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(page.locator(".loading")).toHaveCount(0);
     if (name === "Рассмотрение") {

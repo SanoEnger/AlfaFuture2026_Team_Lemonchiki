@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import {
   Alert,
   Button,
@@ -22,7 +27,8 @@ import {
   Minus,
 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { demo, productName, products } from "../../shared/api/demo";
+import { productName, products } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { Application } from "../../shared/api/types";
 import {
   date,
@@ -43,6 +49,11 @@ import {
 import { CompanyInfo } from "../company/Company";
 import { DocumentList } from "../documents/Documents";
 import { Progress } from "./Dashboard";
+import { DemoError } from "../../shared/api/errors";
+import { SuccessFeedback } from "../../components/ui/states";
+import { NextActionPanel } from "./NextActionPanel";
+import { BankDecisionBar } from "./BankDecisionBar";
+import { OfferComparison } from "./OfferComparison";
 export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
   const { id } = useParams();
   const { session } = useSession();
@@ -53,26 +64,52 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
     queryFn: () => demo.application(id!, bank ? undefined : session!.username),
   });
   const [response, setResponse] = useState("");
-  const [action, setAction] = useState<"accept" | "decline" | "submit" | null>(
-    null,
-  );
+  const [feedback, setFeedback] = useState("");
+  const [action, setAction] = useState<
+    "accept" | "decline" | "submit" | "complete" | null
+  >(null);
   const [bankAction, setBankAction] = useState<
     "offer" | "reject" | "info" | null
   >(null);
   const mutation = useMutation({
     mutationFn: async () =>
-      action === "submit"
-        ? demo.submit(id!)
-        : action
-          ? demo.respond(id!, action === "accept")
-          : demo.resubmit(id!, response),
+      action === "complete"
+        ? demo.complete(id!, session!.username)
+        : action === "submit"
+          ? demo.submit(id!)
+          : action
+            ? demo.respond(id!, action === "accept")
+            : demo.resubmit(id!, response),
     onSuccess: async () => {
+      setFeedback(
+        action === "accept"
+          ? "Предложение принято"
+          : action === "decline"
+            ? "Предложение отклонено"
+            : action === "submit"
+              ? "Заявка отправлена"
+              : action === "complete"
+                ? "Демонстрационное оформление завершено"
+                : "Ответ отправлен",
+      );
       setAction(null);
       setResponse("");
       await qc.invalidateQueries();
     },
+    onError: async (error) => {
+      if (error instanceof DemoError && error.status === 409)
+        await qc.invalidateQueries();
+    },
   });
   const a = q.data;
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (a && hash) {
+      document
+        .getElementById(decodeURIComponent(hash.slice(1)))
+        ?.scrollIntoView({ block: "start" });
+    }
+  }, [a, hash]);
   const tab = params.get("tab") || "data";
   return (
     <>
@@ -94,6 +131,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
             />
             <div className="detail-grid">
               <div className="stack">
+                {feedback && <SuccessFeedback>{feedback}</SuccessFeedback>}
                 {!bank && (
                   <Panel>
                     <div className="section-title">
@@ -215,7 +253,7 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                       <OfferPanel application={a} onRespond={setAction} />
                     )}{" "}
                     {a.status === "NEEDS_INFO" && (
-                      <Panel>
+                      <Panel id="documents">
                         <div className="icon-label">
                           <MessageSquare size={19} className="accent" />
                           <h2>Ответ на запрос банка</h2>
@@ -238,75 +276,61 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                           onChange={(e) => setResponse(e.target.value)}
                           minRows={3}
                           maxLength={3000}
-                          required
+                          description="Можно отправить текст, новый PDF или оба варианта"
                         />
                         <DocumentList application={a} />
                         <ErrorMessage error={mutation.error} />
                         <Button
                           onClick={() => mutation.mutate()}
                           loading={mutation.isPending}
-                          disabled={!response.trim()}
+                          disabled={
+                            !response.trim() &&
+                            !a.documents.some(
+                              (d) =>
+                                d.created_at >=
+                                (a.information_requests
+                                  .filter((r) => r.status === "OPEN")
+                                  .at(-1)?.created_at || "~"),
+                            )
+                          }
                         >
                           Отправить уточнения
                         </Button>
                       </Panel>
                     )}
                     {a.status !== "NEEDS_INFO" && (
-                      <Panel>
+                      <Panel id="documents">
                         <DocumentList application={a} />
                       </Panel>
                     )}
-                    <Panel>
+                    <Panel id="history">
                       <EventHistory application={a} />
                     </Panel>
                   </>
                 )}
               </div>
               <aside className="summary stack">
-                <Panel>
-                  <h3>{bank ? "Работа с заявкой" : "Что дальше"}</h3>
-                  <p className="next-action">{a.next_action}</p>
-                  {bank ? (
-                    <>
-                      <div className="bank-actions">
-                        <Button
-                          disabled={a.status !== "UNDER_REVIEW"}
-                          onClick={() => setBankAction("offer")}
-                        >
-                          Предложить условия
-                        </Button>
+                {bank ? (
+                  <BankDecisionBar application={a} onAction={setBankAction} />
+                ) : (
+                  <>
+                    <NextActionPanel application={a} />
+                    {a.status === "ACCEPTED" && (
+                      <Panel>
+                        <p>
+                          Предложение принято. Можно явно завершить локальный
+                          демосценарий без выдачи средств.
+                        </p>
                         <Button
                           variant="default"
-                          disabled={a.status !== "UNDER_REVIEW"}
-                          onClick={() => setBankAction("info")}
+                          onClick={() => setAction("complete")}
                         >
-                          Запросить сведения
+                          Завершить демосценарий
                         </Button>
-                        <Button
-                          variant="subtle"
-                          disabled={a.status !== "UNDER_REVIEW"}
-                          onClick={() => setBankAction("reject")}
-                        >
-                          Отказать
-                        </Button>
-                      </div>
-                      {a.status !== "UNDER_REVIEW" && (
-                        <small className="muted">
-                          Решение доступно при статусе «На рассмотрении».
-                        </small>
-                      )}
-                    </>
-                  ) : a.status === "DRAFT" ? (
-                    <Button fullWidth onClick={() => setAction("submit")}>
-                      Отправить заявку
-                    </Button>
-                  ) : a.status === "COMPLETED" ? (
-                    <div className="success-text icon-label">
-                      <CheckCircle2 size={18} />
-                      Оформление завершено
-                    </div>
-                  ) : null}
-                </Panel>
+                      </Panel>
+                    )}
+                  </>
+                )}
                 {bank && a.risk && tab !== "risk" && (
                   <Panel className="score-overview">
                     <span className="eyebrow">ДЕМО-СКОРИНГ</span>
@@ -333,10 +357,15 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                 {!bank && (
                   <Panel>
                     <ShieldCheck size={22} className="muted" />
-                    <h3>Автономный прототип</h3>
+                    <h3>
+                      {session?.mode === "api"
+                        ? "Демонстрационный API"
+                        : "Автономный прототип"}
+                    </h3>
                     <p>
-                      Все операции демонстрационные. Изменения сохраняются
-                      только в браузере.
+                      {session?.mode === "api"
+                        ? "Данные и документы сохраняются сервером проекта. Операции демонстрационные, средства не выдаются."
+                        : "Все операции демонстрационные. Изменения сохраняются только в браузере."}
                     </p>
                   </Panel>
                 )}
@@ -350,16 +379,20 @@ export function ApplicationDetail({ bank = false }: { bank?: boolean }) {
                   ? "Принять предложение банка?"
                   : action === "decline"
                     ? "Отклонить предложение?"
-                    : "Отправить заявку?"
+                    : action === "complete"
+                      ? "Завершить демонстрационный сценарий?"
+                      : "Отправить заявку?"
               }
               centered
             >
               <p>
                 {action === "accept"
-                  ? "Вы подтверждаете предложенные сумму, срок и ставку. Будет показано демонстрационное завершение оформления."
+                  ? "Вы подтверждаете предложенные сумму, срок и ставку. Принятие предложения не означает выдачу кредита."
                   : action === "decline"
                     ? "Предложение будет закрыто. Для другого финансирования можно создать новую заявку."
-                    : "После отправки изменить заявку можно только через запрос уточнений."}
+                    : action === "complete"
+                      ? "Оформление будет помечено завершённым в демонстрации. Реальная выдача средств не выполняется."
+                      : "После отправки изменить заявку можно только через запрос уточнений."}
               </p>
               <ErrorMessage error={mutation.error} />
               <div className="row end">
@@ -395,44 +428,22 @@ function OfferPanel({
 }) {
   const o = a.latest_offer!;
   return (
-    <Panel className="offer-panel">
+    <Panel className="offer-panel" id="offer">
       <div className="section-title">
         <h2>Предложение банка</h2>
         <span className="status status-COMPLETED">Индивидуальные условия</span>
       </div>
-      <p>{o.reason}</p>
-      <table className="offer-table">
-        <thead>
-          <tr>
-            <th>Условия</th>
-            <th>Запрошено</th>
-            <th>Предложено банком</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Сумма</td>
-            <td>{money(a.requested_terms.amount)}</td>
-            <td>{money(o.amount)}</td>
-          </tr>
-          <tr>
-            <td>Срок</td>
-            <td>{a.requested_terms.term_months} мес.</td>
-            <td>{o.term_months} мес.</td>
-          </tr>
-          <tr>
-            <td>Ставка</td>
-            <td>По решению банка</td>
-            <td>{o.annual_rate}% годовых</td>
-          </tr>
-        </tbody>
-      </table>
+      <p>{o.reason || "Комментарий банка не указан."}</p>
+      <small className="muted">
+        Демонстрационные условия · не являются реальным банковским предложением.
+      </small>
+      <OfferComparison application={a} />
       <Button
         variant="subtle"
         className="explain-offer"
         onClick={() => window.dispatchEvent(new Event("open-credit-assistant"))}
       >
-        Объяснить условия через AI-помощника
+        Объяснить условия
       </Button>
       {a.status === "OFFERED" && (
         <div className="row">
@@ -499,6 +510,21 @@ function RiskPanel({ application: a }: { application: Application }) {
         </div>
       </div>
       <span className="muted">Версия правил: {r.rules_version}</span>
+      <p className="muted">
+        Источник: сведения компании в заявке. В этой демомодели больший балл
+        соответствует меньшему риску; оценка не является банковским решением.
+      </p>
+      <p className="muted">
+        Дата расчёта:{" "}
+        {r.calculated_at ? date(r.calculated_at) : "не предоставлена"}
+      </p>
+      <Metrics
+        items={[
+          ["Выручка", money(a.company.revenue)],
+          ["Расходы", money(a.company.expenses)],
+          ["Платежи по долгам", money(a.company.debt_payment)],
+        ]}
+      />
       <hr />
       <h3>Факторы оценки</h3>
       {r.factors.map((f) => (
@@ -524,7 +550,7 @@ function RiskPanel({ application: a }: { application: Application }) {
                     BUSINESS_AGE: "Возраст бизнеса",
                     CREDIT_HISTORY: "Кредитная история",
                   } as Record<string, string>
-                )[f.code]
+                )[f.code] || f.code
               }
             </strong>
             <p>{f.explanation}</p>
@@ -566,6 +592,7 @@ function BankAction({
   action: "offer" | "reject" | "info" | null;
   onClose: () => void;
 }) {
+  const { session } = useSession();
   const qc = useQueryClient();
   const p = products.find((p) => p.id === a.requested_terms.product_id)!;
   const [amount, setAmount] = useState(a.requested_terms.amount);
@@ -585,7 +612,7 @@ function BankAction({
   const mutation = useMutation({
     mutationFn: () =>
       action === "info"
-        ? demo.requestInfo(a.id, reason)
+        ? demo.requestInfo(a.id, reason, session!, a.version || 1)
         : demo.decision(
             a.id,
             action === "offer" ? "OFFERED" : "REJECTED",
@@ -593,10 +620,18 @@ function BankAction({
             action === "offer"
               ? { amount, term_months: term, annual_rate: rate }
               : undefined,
+            session!,
+            a.version || 1,
           ),
     onSuccess: async () => {
       await qc.invalidateQueries();
       onClose();
+    },
+    onError: async (error) => {
+      if (error instanceof DemoError && error.status === 409) {
+        await qc.invalidateQueries();
+        setStage(false);
+      }
     },
   });
   return (

@@ -9,9 +9,11 @@ import {
 import { Monitor, Moon, Sun, RotateCcw, Check } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { PageTitle, Panel } from "../components/ui/common";
-import { demo } from "../shared/api/demo";
+import { data as demo } from "../shared/api/data";
 import { Link } from "react-router-dom";
 import { useSession } from "./session";
+import { ProfileSettings } from "../features/auth/ProfileSettings";
+import { isServerMode } from "../shared/api/data";
 export function Settings() {
   const { session } = useSession();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -19,7 +21,8 @@ export function Settings() {
   const [confirm, setConfirm] = useState(false);
   const [reset, setReset] = useState(false);
   const [density, setDensity] = useState(
-    localStorage.getItem("smart-density") || "comfortable",
+    localStorage.getItem("smart-density") ||
+      (session?.role !== "CLIENT" ? "compact" : "comfortable"),
   );
   const [motion, setMotion] = useState(
     localStorage.getItem("smart-motion") === "reduce",
@@ -31,6 +34,7 @@ export function Settings() {
         subtitle="Настройте кабинет для комфортной работы"
       />
       <div className="settings-stack">
+        <ProfileSettings />
         {session?.role === "CLIENT" && (
           <Link to="/client/ui-states" className="text-button">
             Посмотреть состояния интерфейса
@@ -124,24 +128,27 @@ export function Settings() {
             />
           </div>
         </Panel>
-        <Panel>
-          <h3>Демонстрационные данные</h3>
-          <p>
-            Восстановить исходные заявки, предложения и историю в этом браузере.
-          </p>
-          <Button
-            variant="default"
-            leftSection={<RotateCcw size={16} />}
-            onClick={() => setConfirm(true)}
-          >
-            Сбросить демоданные
-          </Button>
-          {reset && (
-            <p className="success-text" role="status">
-              Демоданные восстановлены
+        {!isServerMode() && (
+          <Panel>
+            <h3>Демонстрационные данные</h3>
+            <p>
+              Восстановить исходные заявки, предложения и историю в этом
+              браузере.
             </p>
-          )}
-        </Panel>
+            <Button
+              variant="default"
+              leftSection={<RotateCcw size={16} />}
+              onClick={() => setConfirm(true)}
+            >
+              Сбросить демоданные
+            </Button>
+            {reset && (
+              <p className="success-text" role="status">
+                Демоданные восстановлены
+              </p>
+            )}
+          </Panel>
+        )}
       </div>
       <Modal
         opened={confirm}

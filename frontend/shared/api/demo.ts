@@ -7,8 +7,13 @@ import type {
   Product,
   Risk,
   Status,
+  Session,
 } from "./types";
 import { statuses } from "../format";
+import { DemoError } from "./errors";
+import { validateDraft, minorUnits } from "../validation";
+import { readCompanies, saveCompany } from "./companyStore";
+import { identity } from "./identity";
 export const products: Product[] = [
   {
     id: "working",
@@ -35,6 +40,10 @@ export const products: Product[] = [
     annual_rate: "16.5",
   },
 ];
+const demoCatalog = structuredClone(products);
+export function restoreDemoCatalog() {
+  products.splice(0, products.length, ...structuredClone(demoCatalog));
+}
 export const companies: Record<string, Company> = {
   client_good: {
     id: "vector",
@@ -88,6 +97,7 @@ export function score(company: Company): Risk {
       ? "Устойчивые показатели бизнеса. Рекомендуется рассмотреть запрошенные условия."
       : "Повышенная долговая нагрузка. Рекомендуется уточнить финансовые показатели.",
     rules_version: "demo-rules-v1",
+    calculated_at: now(),
     factors: [
       {
         code: "MARGIN",
@@ -131,6 +141,8 @@ function seed(): Application[] {
     id,
     owner,
     status,
+    version: 1,
+    assigned_officer_id: id === "SC-1042" ? "banker" : null,
     requested_terms: {
       product_id,
       amount,
@@ -215,11 +227,21 @@ export function readApplications(): Application[] {
 function store(list: Application[]) {
   localStorage.setItem(key, JSON.stringify(list));
 }
-function change(id: string, fn: (a: Application) => void): Application {
+function change(
+  id: string,
+  fn: (a: Application) => void,
+  expectedVersion?: number,
+): Application {
   const list = readApplications();
   const a = list.find((x) => x.id === id);
-  if (!a) throw new Error("Заявка не найдена");
+  if (!a) throw new DemoError(404, "Заявка не найдена");
+  if (expectedVersion !== undefined && expectedVersion !== (a.version || 1))
+    throw new DemoError(
+      409,
+      "Заявка изменена в другой вкладке. Обновите данные.",
+    );
   fn(a);
+  a.version = (a.version || 1) + 1;
   a.updated_at = now();
   a.next_action = nextAction(a.status);
   store(list);
@@ -233,6 +255,20 @@ const delay = async <T>(value: T): Promise<T> => {
   await new Promise((r) => setTimeout(r, 160));
   return structuredClone(value);
 };
+export function canDecide(a: Application, actor: Session) {
+  return (
+    ["BANK_EMPLOYEE", "BANK_OFFICER"].includes(actor.role) &&
+    (a.assigned_officer_id || null) === actor.username &&
+    (actor.demoAccount || identity.validate(actor))
+  );
+}
+function checkBank(a: Application, actor?: Session) {
+  if (actor && !canDecide(a, actor))
+    throw new DemoError(
+      403,
+      "Кредитное действие доступно только назначенному активному сотруднику",
+    );
+}
 export const demo = {
   applications: (owner?: string) =>
     delay(readApplications().filter((a) => !owner || a.owner === owner)),
@@ -240,35 +276,66 @@ export const demo = {
     const a = readApplications().find(
       (x) => x.id === id && (!owner || x.owner === owner),
     );
-    return a ? delay(a) : Promise.reject(new Error("Заявка не найдена"));
+    return a
+      ? delay(a)
+      : Promise.reject(new DemoError(404, "Заявка не найдена"));
   },
-  company: (owner: string) => delay(companies[owner] || companies.client_good),
+  company: (owner: string) => {
+    const c = readCompanies()[owner] || companies[owner];
+    return c
+      ? delay(c)
+      : Promise.reject(
+          new DemoError(404, "Сначала завершите настройку компании"),
+        );
+  },
+  updateCompany: async (owner: string, company: Company) => {
+    if (!company.legal_name.trim() || !/^(?:\d{10}|\d{12})$/.test(company.inn))
+      throw new DemoError(422, "Укажите наименование и ИНН из 10 или 12 цифр");
+    if (
+      Object.entries({ ...companies, ...readCompanies() }).some(
+        ([key, c]) => key !== owner && c.inn === company.inn,
+      )
+    )
+      throw new DemoError(
+        409,
+        "Компания с таким ИНН уже существует; автоматическое присоединение недоступно",
+      );
+    return delay(saveCompany(owner, company));
+  },
   products: () => delay(products),
   news: (owner: string) =>
     delay(
       news.filter(
         (n) =>
-          n.industry === "ALL" || n.industry === companies[owner]?.industry,
+          n.industry === "ALL" ||
+          n.industry === (readCompanies()[owner] || companies[owner])?.industry,
       ),
     ),
-  saveDraft: async (owner: string, draft: Draft, id?: string) => {
+  saveDraft: async (
+    owner: string,
+    draft: Draft,
+    id?: string,
+    expectedVersion?: number,
+  ) => {
     const p = products.find((p) => p.id === draft.product_id);
-    if (
-      !p ||
-      Number(draft.amount) < Number(p.min_amount) ||
-      Number(draft.amount) > Number(p.max_amount) ||
-      draft.term_months < p.min_term ||
-      draft.term_months > p.max_term
-    )
-      throw new Error("Сумма или срок выходят за пределы продукта");
+    const errors = validateDraft(draft, p);
+    if (Object.keys(errors).length)
+      throw new DemoError(422, Object.values(errors).join(". "), errors);
     if (id)
       return delay(
-        change(id, (a) => {
-          if (a.owner !== owner || a.status !== "DRAFT")
-            throw new Error("Редактирование недоступно");
-          a.requested_terms = { ...draft };
-          a.company = { ...a.company, ...draft.company_financials };
-        }),
+        change(
+          id,
+          (a) => {
+            if (a.owner !== owner || a.status !== "DRAFT")
+              throw new DemoError(
+                409,
+                "Редактирование недоступно. Обновите заявку.",
+              );
+            a.requested_terms = { ...draft };
+            a.company = { ...a.company, ...draft.company_financials };
+          },
+          expectedVersion,
+        ),
       );
     const list = readApplications();
     const idNew = `SC-${Math.max(1042, ...list.map((a) => Number(a.id.slice(3)) || 0)) + 1}`;
@@ -276,8 +343,13 @@ export const demo = {
       id: idNew,
       owner,
       status: "DRAFT",
+      version: 1,
+      assigned_officer_id: null,
       requested_terms: { ...draft },
-      company: { ...companies[owner], ...draft.company_financials },
+      company: {
+        ...(readCompanies()[owner] || companies[owner]),
+        ...draft.company_financials,
+      },
       updated_at: now(),
       next_action: nextAction("DRAFT"),
       latest_offer: null,
@@ -300,7 +372,7 @@ export const demo = {
     delay(
       change(id, (a) => {
         if (a.status !== "DRAFT")
-          throw new Error("Отправить можно только черновик");
+          throw new DemoError(409, "Отправить можно только черновик");
         transition(a, "SUBMITTED", "Клиент отправил заявку");
         transition(
           a,
@@ -315,27 +387,110 @@ export const demo = {
         );
       }),
     ),
-  requestInfo: async (id: string, message: string) =>
+  claim: async (id: string, actor: Session, expectedVersion?: number) =>
     delay(
-      change(id, (a) => {
-        if (a.status !== "UNDER_REVIEW") throw new Error("Действие недоступно");
-        if (!message.trim()) throw new Error("Укажите запрашиваемые сведения");
-        a.information_requests.push({
-          id: uid(),
-          message,
-          status: "OPEN",
-          created_at: now(),
-        });
-        transition(a, "NEEDS_INFO", message);
-      }),
+      change(
+        id,
+        (a) => {
+          if (
+            !["BANK_EMPLOYEE", "BANK_OFFICER"].includes(actor.role) ||
+            (!actor.demoAccount && !identity.validate(actor))
+          )
+            throw new DemoError(403, "Требуются полномочия сотрудника");
+          if (a.status !== "UNDER_REVIEW" || a.assigned_officer_id)
+            throw new DemoError(
+              409,
+              "Заявка уже назначена или недоступна для взятия в работу",
+            );
+          a.assigned_officer_id = actor.username;
+          a.events.push({
+            id: uid(),
+            to_status: a.status,
+            reason: `Заявка взята в работу: ${actor.displayName || actor.username}`,
+            occurred_at: now(),
+          });
+        },
+        expectedVersion,
+      ),
+    ),
+  assign: async (
+    id: string,
+    actor: Session,
+    officer: string,
+    expectedVersion?: number,
+  ) =>
+    delay(
+      change(
+        id,
+        (a) => {
+          if (
+            actor.role !== "BANK_ADMIN" ||
+            (!actor.demoAccount && !identity.validate(actor))
+          )
+            throw new DemoError(403, "Требуются права администратора");
+          const target = identity
+            .staff()
+            .find((u) => u.id === officer && u.status === "ACTIVE");
+          if (!target && !["banker", "banker_two"].includes(officer))
+            throw new DemoError(422, "Выберите активного сотрудника");
+          const previous = a.assigned_officer_id || null;
+          a.assigned_officer_id = officer;
+          a.events.push({
+            id: uid(),
+            to_status: a.status,
+            reason: `Ответственный изменён: ${previous || "не назначен"} → ${target?.displayName || officer}`,
+            occurred_at: now(),
+          });
+          identity.recordAssignment(actor, id, previous, officer);
+        },
+        expectedVersion,
+      ),
+    ),
+  requestInfo: async (
+    id: string,
+    message: string,
+    actor?: Session,
+    expectedVersion?: number,
+  ) =>
+    delay(
+      change(
+        id,
+        (a) => {
+          checkBank(a, actor);
+          if (a.status !== "UNDER_REVIEW")
+            throw new DemoError(409, "Действие недоступно. Обновите заявку.");
+          if (!message.trim())
+            throw new Error("Укажите запрашиваемые сведения");
+          a.information_requests.push({
+            id: uid(),
+            message,
+            status: "OPEN",
+            created_at: now(),
+          });
+          transition(a, "NEEDS_INFO", message);
+        },
+        expectedVersion,
+      ),
     ),
   resubmit: async (id: string, message: string) =>
     delay(
       change(id, (a) => {
-        if (a.status !== "NEEDS_INFO") throw new Error("Действие недоступно");
-        if (!message.trim()) throw new Error("Добавьте ответ банку");
+        if (a.status !== "NEEDS_INFO")
+          throw new DemoError(409, "Действие недоступно. Обновите заявку.");
+        const request = a.information_requests
+          .filter((r) => r.status === "OPEN")
+          .at(-1);
+        const hasNewFile =
+          request &&
+          a.documents.some((d) => d.created_at >= request.created_at);
+        if (!request || (!message.trim() && !hasNewFile))
+          throw new DemoError(422, "Добавьте ответ банку или новый PDF");
         a.information_requests.forEach((r) => (r.status = "RESOLVED"));
-        transition(a, "SUBMITTED", `Ответ клиента: ${message}`);
+        transition(
+          a,
+          "SUBMITTED",
+          `Ответ клиента: ${message.trim() || "Предоставлен PDF по запросу банка"}`,
+        );
         transition(a, "VERIFYING", "Повторные демонстрационные проверки");
         a.risk = score(a.company);
         transition(a, "UNDER_REVIEW", "Повторные проверки завершены");
@@ -346,36 +501,74 @@ export const demo = {
     type: "OFFERED" | "REJECTED",
     reason: string,
     offer?: { amount: string; term_months: number; annual_rate: string },
+    actor?: Session,
+    expectedVersion?: number,
   ) =>
     delay(
-      change(id, (a) => {
-        if (a.status !== "UNDER_REVIEW")
-          throw new Error("Решение уже принято или требуется уточнение");
-        if (!reason.trim()) throw new Error("Укажите причину решения");
-        if (type === "OFFERED") {
-          if (
-            !offer ||
-            Number(offer.amount) <= 0 ||
-            Number(offer.amount) > Number(a.requested_terms.amount)
-          )
-            throw new Error("Проверьте сумму предложения");
-          a.latest_offer = { ...offer, reason, created_at: now() };
-        }
-        transition(a, type, reason);
-      }),
+      change(
+        id,
+        (a) => {
+          checkBank(a, actor);
+          if (a.status !== "UNDER_REVIEW")
+            throw new DemoError(
+              409,
+              "Решение уже принято или требуется уточнение",
+            );
+          if (!reason.trim()) throw new Error("Укажите причину решения");
+          if (type === "OFFERED") {
+            if (
+              !offer ||
+              minorUnits(offer.amount) === null ||
+              minorUnits(offer.amount)! <= 0n ||
+              minorUnits(offer.amount)! >
+                minorUnits(a.requested_terms.amount)! ||
+              !Number.isInteger(offer.term_months) ||
+              offer.term_months <
+                (products.find((p) => p.id === a.requested_terms.product_id)
+                  ?.min_term || 1) ||
+              offer.term_months >
+                (products.find((p) => p.id === a.requested_terms.product_id)
+                  ?.max_term || 60) ||
+              minorUnits(offer.annual_rate) === null ||
+              minorUnits(offer.annual_rate)! > 10000n
+            )
+              throw new DemoError(
+                422,
+                "Проверьте сумму, срок и ставку предложения",
+              );
+            a.latest_offer = { ...offer, reason, created_at: now() };
+          }
+          transition(a, type, reason);
+        },
+        expectedVersion,
+      ),
     ),
   respond: async (id: string, accept: boolean) =>
     delay(
       change(id, (a) => {
         if (a.status !== "OFFERED")
-          throw new Error("Нет доступного предложения");
+          throw new DemoError(409, "Нет доступного предложения");
         transition(
           a,
           accept ? "ACCEPTED" : "DECLINED",
           accept ? "Клиент принял предложение" : "Клиент отклонил предложение",
         );
-        if (accept)
-          transition(a, "COMPLETED", "Демонстрационное оформление завершено");
+      }),
+    ),
+  complete: async (id: string, owner: string) =>
+    delay(
+      change(id, (a) => {
+        if (a.owner !== owner) throw new DemoError(404, "Заявка не найдена");
+        if (a.status !== "ACCEPTED")
+          throw new DemoError(
+            409,
+            "Завершение доступно только после принятия предложения",
+          );
+        transition(
+          a,
+          "COMPLETED",
+          "Клиент явно завершил демонстрационный сценарий. Выдача средств не выполнялась.",
+        );
       }),
     ),
   upload: async (id: string, file: File) => {
@@ -391,7 +584,7 @@ export const demo = {
           throw new Error("Загрузка доступна в черновике или при уточнении");
         a.documents.push({
           id: uid(),
-          file_name: file.name,
+          file_name: file.name.replace(/[\\/\x00-\x1f]/g, "_").slice(0, 255),
           size_bytes: file.size,
           created_at: now(),
         });

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Button, Modal } from "@mantine/core";
 import { ArrowUpRight, Landmark, ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { demo } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { Product } from "../../shared/api/types";
 import { money } from "../../shared/format";
 import {
@@ -14,7 +14,21 @@ import {
 } from "../../components/ui/common";
 export function ProductCards({ compact = false }: { compact?: boolean }) {
   const q = useQuery({ queryKey: ["products"], queryFn: demo.products });
-  const [selected, setSelected] = useState<Product | null>(null);
+  const [params, setParams] = useSearchParams();
+  const [showDetails, setShowDetails] = useState(true);
+  const selected = q.data?.find((p) => p.id === params.get("product")) || null;
+  function selectProduct(id: string | null) {
+    setShowDetails(true);
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (id) next.set("product", id);
+        else next.delete("product");
+        return next;
+      },
+      { replace: true },
+    );
+  }
   return (
     <QueryState query={q}>
       <div className="product-grid">
@@ -43,7 +57,10 @@ export function ProductCards({ compact = false }: { compact?: boolean }) {
               </>
             )}
             <div className="product-bottom">
-              <button className="text-button" onClick={() => setSelected(p)}>
+              <button
+                className="text-button"
+                onClick={() => selectProduct(p.id)}
+              >
                 Подробнее об условиях <ArrowRight size={14} />
               </button>
               {!compact && (
@@ -60,8 +77,8 @@ export function ProductCards({ compact = false }: { compact?: boolean }) {
         ))}
       </div>
       <Modal
-        opened={!!selected}
-        onClose={() => setSelected(null)}
+        opened={!!selected && showDetails}
+        onClose={() => selectProduct(null)}
         title="Условия продукта"
         centered
       >
@@ -95,6 +112,15 @@ export function ProductCards({ compact = false }: { compact?: boolean }) {
               to={`/client/applications/new?product=${selected.id}`}
             >
               Создать заявку
+            </Button>
+            <Button
+              variant="subtle"
+              onClick={() => {
+                setShowDetails(false);
+                window.dispatchEvent(new Event("open-credit-assistant"));
+              }}
+            >
+              Объяснить продукт
             </Button>
           </>
         )}

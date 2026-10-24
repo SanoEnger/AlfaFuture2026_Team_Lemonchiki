@@ -3,7 +3,8 @@ import { Button } from "@mantine/core";
 import { Link } from "react-router-dom";
 import { Plus, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { demo, productName } from "../../shared/api/demo";
+import { productName } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { Status } from "../../shared/api/types";
 import { date, money, shortId } from "../../shared/format";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../../components/ui/common";
 import { ProductCards } from "../products/Products";
 import { NewsCards } from "../news/News";
+import { NextActionPanel } from "./NextActionPanel";
 export function Progress({ status }: { status: Status }) {
   const index =
     status === "DRAFT"
@@ -54,7 +56,7 @@ export function Dashboard() {
   return (
     <>
       <PageTitle
-        title="Добрый день, Александр"
+        title={`Добрый день, ${session?.displayName?.split(" ")[0] || "Александр"}`}
         subtitle="Ваши заявки и возможности для бизнеса"
         action={
           <Button
@@ -95,28 +97,7 @@ export function Dashboard() {
                 Открыть заявку
               </Button>
             </Panel>
-            <Panel className="next-step">
-              <h3>Следующий шаг</h3>
-              <span
-                className={`status ${["NEEDS_INFO", "OFFERED", "DRAFT"].includes(a.status) ? "status-NEEDS_INFO" : "status-COMPLETED"}`}
-              >
-                <CheckCircle2 size={13} />
-                {["NEEDS_INFO", "OFFERED", "DRAFT"].includes(a.status)
-                  ? "Требуется действие"
-                  : "Действий нет"}
-              </span>
-              <h3>{a.next_action}</h3>
-              <p>
-                {a.status === "UNDER_REVIEW"
-                  ? "Автоматические проверки завершены. Заявка находится у сотрудника банка."
-                  : "Все сведения и доступные действия находятся в карточке заявки."}
-              </p>
-              <hr />
-              <small className="muted">Последнее событие</small>
-              <p className="event-preview">
-                {a.events.at(-1)?.reason} · {date(a.updated_at)}
-              </p>
-            </Panel>
+            <NextActionPanel application={a} />
           </div>
         ) : (
           <Panel>

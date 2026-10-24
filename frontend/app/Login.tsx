@@ -1,21 +1,16 @@
 import { useState } from "react";
 import { Button, Select } from "@mantine/core";
 import { Navigate, useNavigate } from "react-router-dom";
+import { sessionHome } from "../shared/api/identity";
+import { Link } from "react-router-dom";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 import { useSession } from "./session";
-export function Login() {
+import { setDataMode } from "../shared/api/data";
+export function DemoLogin() {
   const { session, setSession } = useSession();
   const navigate = useNavigate();
   const [username, setUsername] = useState("client_good");
-  if (session)
-    return (
-      <Navigate
-        to={
-          session.role === "CLIENT" ? "/client/dashboard" : "/bank/applications"
-        }
-        replace
-      />
-    );
+  if (session) return <Navigate to={sessionHome(session)} replace />;
   return (
     <main className="login">
       <div className="login-intro">
@@ -47,11 +42,23 @@ export function Login() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const role = username === "banker" ? "BANK_EMPLOYEE" : "CLIENT";
-            setSession({ username, role });
-            navigate(
-              role === "CLIENT" ? "/client/dashboard" : "/bank/applications",
-            );
+            setDataMode("demo");
+            const role =
+              username === "banker"
+                ? "BANK_EMPLOYEE"
+                : username === "demo_admin"
+                  ? "BANK_ADMIN"
+                  : username === "banker_two"
+                    ? "BANK_OFFICER"
+                    : "CLIENT";
+            setSession({
+              username,
+              role,
+              demoAccount: true,
+              onboardingComplete: true,
+              issuedAt: Date.now(),
+            });
+            navigate(sessionHome({ username, role }));
           }}
         >
           <Select
@@ -62,6 +69,8 @@ export function Login() {
               { value: "client_good", label: "Предприниматель · ООО «Вектор»" },
               { value: "client_risky", label: "Предприниматель · ИП Сервис" },
               { value: "banker", label: "Сотрудник банка" },
+              { value: "banker_two", label: "Второй сотрудник банка" },
+              { value: "demo_admin", label: "Администратор · демосценарий" },
             ]}
           />
           <Button
@@ -76,6 +85,7 @@ export function Login() {
           Локальная демонстрация интерфейса. Данные сохраняются только в этом
           браузере, подключение к серверу не требуется.
         </small>
+        <Link to="/login">Вход по email и паролю</Link>
       </section>
     </main>
   );
