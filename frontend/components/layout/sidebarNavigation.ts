@@ -10,6 +10,7 @@ import {
   Newspaper,
   Plus,
   Settings,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { Location } from "react-router-dom";
@@ -80,11 +81,29 @@ export const bankNavigation: SidebarItem[] = [
   },
   { id: "settings", to: "/bank/settings", label: "Настройки", icon: Settings },
 ];
+export const adminNavigation: SidebarItem[] = [
+  {
+    id: "administration",
+    to: "/bank/administration",
+    label: "Администрирование",
+    icon: Users,
+  },
+  {
+    id: "queue",
+    to: "/bank/applications",
+    label: "Очередь заявок",
+    icon: ListFilter,
+  },
+  { id: "settings", to: "/bank/settings", label: "Настройки", icon: Settings },
+];
+
 export function isSidebarItemActive(
   item: SidebarItem,
   location: Pick<Location, "pathname" | "search">,
 ): boolean {
   const { pathname, search } = location;
+  if (item.id === "administration")
+    return pathname.startsWith("/bank/administration");
   if (item.to.startsWith("/bank/applications")) {
     const view = new URLSearchParams(search).get("view");
     if (pathname.startsWith("/bank/applications/")) return item.id === "review";

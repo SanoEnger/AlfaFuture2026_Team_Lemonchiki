@@ -1,4 +1,4 @@
-export type Role = "CLIENT" | "BANK_EMPLOYEE";
+export type Role = "CLIENT" | "BANK_EMPLOYEE" | "BANK_OFFICER" | "BANK_ADMIN";
 export type Status =
   | "DRAFT"
   | "SUBMITTED"
@@ -13,6 +13,13 @@ export type Status =
 export interface Session {
   role: Role;
   username: string;
+  displayName?: string;
+  email?: string;
+  onboardingComplete?: boolean;
+  sessionVersion?: number;
+  issuedAt?: number;
+  demoAccount?: boolean;
+  mode?: "demo" | "api";
 }
 export interface Financials {
   revenue: string;
@@ -76,6 +83,7 @@ export interface Risk {
   risk_level: "LOW" | "MEDIUM" | "HIGH";
   recommendation: string;
   rules_version: string;
+  calculated_at?: string;
   factors: {
     code: string;
     direction: string;
@@ -96,6 +104,9 @@ export interface Application {
   information_requests: InfoRequest[];
   events: Event[];
   risk: Risk | null;
+  version?: number;
+  assigned_officer_id?: string | null;
+  submitted_at?: string;
 }
 export interface News {
   id: string;

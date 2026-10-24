@@ -21,7 +21,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useSession } from "../../app/session";
-import { demo, products, productName } from "../../shared/api/demo";
+import { products, productName } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { Application, Company, Draft } from "../../shared/api/types";
 import { money, purposeName } from "../../shared/format";
 import {
@@ -31,11 +32,18 @@ import {
   ErrorMessage,
 } from "../../components/ui/common";
 import { CompanyInfo } from "../company/Company";
+import { validateDraft } from "../../shared/validation";
+import { isServerMode } from "../../shared/api/data";
 const steps = ["Выбор продукта", "Параметры", "Компания", "Подтверждение"];
 export function Wizard() {
   const { session } = useSession();
   const [params] = useSearchParams();
-  const id = params.get("draft");
+  const [resumedId] = useState(() =>
+    isServerMode()
+      ? sessionStorage.getItem(`smart-credit-api-draft-${session!.username}`)
+      : null,
+  );
+  const id = params.get("draft") || resumedId;
   const q = useQuery({
     queryKey: ["wizard", session?.username, id],
     queryFn: async () => ({
@@ -67,6 +75,7 @@ function WizardForm({
 }) {
   const { session } = useSession();
   const wideSummary = useMediaQuery("(min-width: 769px)");
+  const [, setContextParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const storageKey = `smart-credit-form-${session!.username}-${existing?.id || "new"}`;
@@ -82,8 +91,9 @@ function WizardForm({
         },
       };
     try {
+      if (isServerMode()) throw new Error("Use server draft");
       const cached = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (cached) return cached;
+      if (cached) return cached.draft || cached;
     } catch {}
     const p = products.find((p) => p.id === preferred) || products[0];
     return {
@@ -101,53 +111,125 @@ function WizardForm({
     };
   });
   const [step, setStep] = useState(0);
+  useEffect(() => {
+    setContextParams(
+      (current) => {
+        if (current.get("product") === draft.product_id) return current;
+        const next = new URLSearchParams(current);
+        next.set("product", draft.product_id);
+        return next;
+      },
+      { replace: true },
+    );
+  }, [draft.product_id]);
   const [error, setError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState("Изменения сохраняются в браузере");
+  const [saved, setSaved] = useState("Ожидает сохранения");
+  const [saveFailed, setSaveFailed] = useState(false);
   const [consent, setConsent] = useState(false);
-  const idRef = useRef<string | undefined>(existing?.id);
+  const idRef = useRef<string | undefined>(
+    existing?.id ||
+      (() => {
+        try {
+          if (isServerMode()) return undefined;
+          return JSON.parse(localStorage.getItem(storageKey) || "null")?.id;
+        } catch {
+          return undefined;
+        }
+      })(),
+  );
+  const submitting = useRef(false);
+  const versionRef = useRef<number | undefined>(
+    existing?.version ||
+      (() => {
+        try {
+          if (isServerMode()) return undefined;
+          return JSON.parse(localStorage.getItem(storageKey) || "null")
+            ?.version;
+        } catch {
+          return undefined;
+        }
+      })(),
+  );
   const pending = useRef<Promise<unknown>>(Promise.resolve());
   const latest = useRef(draft);
   latest.current = draft;
   const product =
     products.find((p) => p.id === draft.product_id) || products[0];
-  const valid =
-    Number(draft.amount) >= Number(product.min_amount) &&
-    Number(draft.amount) <= Number(product.max_amount) &&
-    Number.isInteger(draft.term_months) &&
-    draft.term_months >= product.min_term &&
-    draft.term_months <= product.max_term &&
-    Object.values(draft.company_financials).every(
-      (x) => x !== "" && Number.isFinite(Number(x)) && Number(x) >= 0,
-    ) &&
-    draft.company_financials.months_active <= 1200 &&
-    Number.isInteger(draft.company_financials.months_active);
+  const fieldErrors = validateDraft(draft, product);
+  const valid = Object.keys(fieldErrors).length === 0;
   function save() {
+    const snapshot = structuredClone(latest.current);
+    setSaved("Сохраняем…");
+    setSaveFailed(false);
     const task = pending.current
       .catch(() => {})
       .then(async () => {
         const a = await demo.saveDraft(
           session!.username,
-          latest.current,
+          snapshot,
           idRef.current,
+          versionRef.current,
         );
         idRef.current = a.id;
-        setSaved(`Черновик №${a.id.slice(3)} сохранён`);
+        versionRef.current = a.version;
+        if (isServerMode())
+          sessionStorage.setItem(
+            `smart-credit-api-draft-${session!.username}`,
+            a.id,
+          );
+        else
+          localStorage.setItem(
+            storageKey,
+            JSON.stringify({
+              id: a.id,
+              version: a.version,
+              draft: latest.current,
+            }),
+          );
+        if (JSON.stringify(snapshot) === JSON.stringify(latest.current)) {
+          setSaved(
+            `Сохранено в ${new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`,
+          );
+          setError(null);
+        }
         await qc.invalidateQueries({ queryKey: ["applications"] });
         return a;
+      })
+      .catch((e) => {
+        setSaved("Не удалось сохранить");
+        setSaveFailed(true);
+        setError(e as Error);
+        throw e;
       });
     pending.current = task;
     return task;
   }
   useEffect(() => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(draft));
-      setSaved("Изменения сохранены в браузере");
+      if (!isServerMode())
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            id: idRef.current,
+            version: versionRef.current,
+            draft,
+          }),
+        );
+      setSaved("Ожидает сохранения");
     } catch {
       setError(new Error("Не удалось сохранить данные в браузере"));
+      setSaved("Не удалось сохранить");
+      setSaveFailed(true);
     }
-    if (!idRef.current || !valid) return;
+    if (
+      !valid ||
+      submitting.current ||
+      (existing && existing.status !== "DRAFT")
+    )
+      return;
     const timer = setTimeout(() => {
+      if (submitting.current) return;
       save().catch((e) => setError(e));
     }, 700);
     return () => clearTimeout(timer);
@@ -176,10 +258,12 @@ function WizardForm({
     }));
   }
   async function proceed(submit = false) {
+    if (submitting.current) return;
     if (step > 0 && !valid) {
       setError(new Error("Проверьте сумму, срок и финансовые показатели"));
       return;
     }
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -190,6 +274,10 @@ function WizardForm({
         if (submit) {
           await demo.submit(a.id);
           localStorage.removeItem(storageKey);
+          if (isServerMode())
+            sessionStorage.removeItem(
+              `smart-credit-api-draft-${session!.username}`,
+            );
           await qc.invalidateQueries();
           navigate(`/client/applications/${a.id}`);
         } else setStep((s) => Math.min(3, s + 1));
@@ -197,6 +285,7 @@ function WizardForm({
     } catch (e) {
       setError(e as Error);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -322,7 +411,12 @@ function WizardForm({
                 />
                 <Textarea
                   label="Комментарий"
-                  description="Необязательно"
+                  disabled={isServerMode()}
+                  description={
+                    isServerMode()
+                      ? "Комментарий не поддерживается текущим серверным контрактом"
+                      : "Необязательно"
+                  }
                   placeholder="Расскажите о планах бизнеса"
                   value={draft.comment}
                   onChange={(e) => update("comment", e.target.value)}
@@ -341,6 +435,11 @@ function WizardForm({
                   <TextInput label="ИНН" value={company.inn} readOnly />
                   <NumberInput
                     label="Среднемесячная выручка, ₽"
+                    error={
+                      draft.company_financials.revenue === ""
+                        ? "Укажите выручку"
+                        : undefined
+                    }
                     value={draft.company_financials.revenue}
                     min={0}
                     decimalScale={2}
@@ -350,6 +449,11 @@ function WizardForm({
                   />
                   <NumberInput
                     label="Среднемесячные расходы, ₽"
+                    error={
+                      draft.company_financials.expenses === ""
+                        ? "Укажите расходы"
+                        : undefined
+                    }
                     value={draft.company_financials.expenses}
                     min={0}
                     decimalScale={2}
@@ -359,6 +463,11 @@ function WizardForm({
                   />
                   <NumberInput
                     label="Платежи по долгам в месяц, ₽"
+                    error={
+                      draft.company_financials.debt_payment === ""
+                        ? "Укажите платежи, включая нулевые"
+                        : undefined
+                    }
                     value={draft.company_financials.debt_payment}
                     min={0}
                     decimalScale={2}
@@ -429,10 +538,19 @@ function WizardForm({
               >
                 Назад
               </Button>
-              <span className="save-state">
+              <span className="save-state" role="status">
                 <CheckCircle2 size={14} />
                 {saved}
               </span>
+              {saveFailed && (
+                <Button
+                  variant="subtle"
+                  disabled={busy}
+                  onClick={() => save().catch(() => {})}
+                >
+                  Повторить сохранение
+                </Button>
+              )}
               <Button
                 rightSection={
                   step === 3 ? <Check size={16} /> : <ArrowRight size={16} />

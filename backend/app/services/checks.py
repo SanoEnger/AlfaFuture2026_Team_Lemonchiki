@@ -10,6 +10,8 @@ def take_snapshot(company: Company, app: LoanApplication) -> dict:
         'schema_version': 1,
         'application_version': app.version,
         'inn': company.inn,
+        'legal_name': company.legal_name,
+        'form': company.form,
         'industry': company.industry,
         'revenue': str(company.revenue),
         'expenses': str(company.expenses),

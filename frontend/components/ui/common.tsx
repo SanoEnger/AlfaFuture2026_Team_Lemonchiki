@@ -3,14 +3,21 @@ import { Alert, Button, Loader } from "@mantine/core";
 import { AlertCircle, Inbox } from "lucide-react";
 import type { Status } from "../../shared/api/types";
 import { statuses } from "../../shared/format";
+import { LoadingState, ErrorState } from "./states";
 export function Panel({
   children,
   className = "",
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
-  return <section className={`panel ${className}`}>{children}</section>;
+  return (
+    <section id={id} className={`panel ${className}`}>
+      {children}
+    </section>
+  );
 }
 export function PageTitle({
   title,
@@ -61,26 +68,9 @@ export function QueryState({
   query: { isPending: boolean; error: Error | null; refetch: () => unknown };
   children: ReactNode;
 }) {
-  if (query.isPending)
-    return (
-      <div className="loading" role="status">
-        <Loader size="sm" />
-        <span>Загружаем данные…</span>
-      </div>
-    );
+  if (query.isPending) return <LoadingState />;
   if (query.error)
-    return (
-      <Alert
-        color="red"
-        title="Не удалось загрузить данные"
-        icon={<AlertCircle size={18} />}
-      >
-        <p>{query.error.message}</p>
-        <Button variant="light" onClick={() => query.refetch()}>
-          Повторить
-        </Button>
-      </Alert>
-    );
+    return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
   return <>{children}</>;
 }
 export function ErrorMessage({ error }: { error: Error | null }) {

@@ -12,6 +12,8 @@ import { Routes } from "./routes";
 import "../shared/theme/styles.css";
 import "../src/styles/finance-themes.css";
 import "../shared/theme/sidebar.css";
+import "../src/styles/ai-assistant.css";
+import "../src/styles/workflow.css";
 const theme = createTheme({
   fontFamily: "IBM Plex Sans, Arial, sans-serif",
   headings: {

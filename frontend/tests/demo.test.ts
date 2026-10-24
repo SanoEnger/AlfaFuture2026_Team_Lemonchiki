@@ -34,6 +34,8 @@ describe("автономный кредитный сценарий", () => {
     expect(offered.requested_terms.amount).toBe("400000");
     expect(offered.latest_offer?.amount).toBe("350000");
     await demo.respond(a.id, true);
+    expect((await demo.application(a.id)).status).toBe("ACCEPTED");
+    await demo.complete(a.id, "client_good");
     const final = await demo.application(a.id);
     expect(final.status).toBe("COMPLETED");
     expect(final.events.map((e) => e.to_status)).toEqual([

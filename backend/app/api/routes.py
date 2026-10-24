@@ -90,7 +90,11 @@ def as_application(db: Session, app: LoanApplication) -> ApplicationResponse:
     offer = None
     if decision and decision.type == 'OFFERED':
         offer = OfferResponse(amount=decision.offer_amount, term_months=decision.offer_term, annual_rate=decision.offer_rate, reason=decision.reason, created_at=decision.created_at)
-    return ApplicationResponse(id=app.id, status=app.status, requested_terms=TermsResponse(amount=app.requested_amount, term_months=app.term_months, product_id=app.product_id, purpose=app.purpose), company=CompanyResponse.model_validate(company), updated_at=app.updated_at, next_action=next_action(app.status), latest_offer=offer)
+    company_data = CompanyResponse.model_validate(company)
+    if app.status != Status.DRAFT and app.financial_snapshot:
+        historical = {key: value for key, value in app.financial_snapshot.items() if key in CompanyResponse.model_fields and key != 'id' and value is not None}
+        company_data = CompanyResponse.model_validate({**company_data.model_dump(), **historical})
+    return ApplicationResponse(id=app.id, status=app.status, requested_terms=TermsResponse(amount=app.requested_amount, term_months=app.term_months, product_id=app.product_id, purpose=app.purpose), company=company_data, updated_at=app.updated_at, next_action=next_action(app.status), latest_offer=offer)
 
 
 def status_response(app: LoanApplication) -> StatusResponse:
@@ -257,7 +261,7 @@ def app_history(application_id: uuid.UUID, db: Db, user: Client):
 
 
 @router.post('/applications/{application_id}/accept', response_model=StatusResponse, tags=['client'])
-def accept_offer(application_id: uuid.UUID, db: Db, user: Client):
+def accept_offer(application_id: uuid.UUID, db: Db, user: Client, complete_demo: bool = Query(default=True)):
     app = app_of(db, application_id, user, lock=True)
     if app.status != Status.OFFERED:
         raise ApiError('INVALID_TRANSITION', 'Нет доступного предложения', 409)
@@ -265,7 +269,9 @@ def accept_offer(application_id: uuid.UUID, db: Db, user: Client):
     if not decision or decision.type != 'OFFERED':
         raise ApiError('INVALID_TRANSITION', 'Предложение банка не найдено', 409)
     transition(db, app, Status.ACCEPTED, actor_id=user.id, reason='Клиент принял предложение')
-    transition(db, app, Status.COMPLETED, reason='Демонстрационная выдача завершена; реальные средства не перечислялись')
+    if complete_demo:
+        # Preserve existing API clients; the new UI explicitly opts into separate completion.
+        transition(db, app, Status.COMPLETED, reason='Демонстрационная выдача завершена; реальные средства не перечислялись')
     db.commit()
     return status_response(app)
 

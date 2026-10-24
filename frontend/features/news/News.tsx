@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Modal, SegmentedControl } from "@mantine/core";
 import { ArrowUpRight } from "lucide-react";
 import { useSession } from "../../app/session";
-import { demo } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import type { News as NewsItem } from "../../shared/api/types";
 import { date } from "../../shared/format";
 import { PageTitle, Panel, QueryState } from "../../components/ui/common";

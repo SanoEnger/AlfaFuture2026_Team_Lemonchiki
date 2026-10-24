@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Select, TextInput } from "@mantine/core";
+import { Button, Select, TextInput, Pagination } from "@mantine/core";
+import { identity } from "../../shared/api/identity";
 import { Plus, Search, ArrowUpDown, ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSession } from "../../app/session";
-import { demo, productName, products } from "../../shared/api/demo";
+import { productName, products } from "../../shared/api/demo";
+import { data as demo } from "../../shared/api/data";
 import { date, money, shortId, statuses } from "../../shared/format";
 import {
   Empty,
@@ -32,6 +34,11 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
   const [product, setProduct] = useState<string | null>("");
   const [risk, setRisk] = useState<string | null>("");
   const [asc, setAsc] = useState(false);
+  const [assignment, setAssignment] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, product, risk, view, assignment]);
   useEffect(() => {
     setSearch("");
     setStatus("");
@@ -51,10 +58,15 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
               "DECLINED",
               "COMPLETED",
             ].includes(a.status)) &&
+          (!bank || a.status !== "DRAFT") &&
+          (!assignment ||
+            (assignment === "mine"
+              ? a.assigned_officer_id === session?.username
+              : !a.assigned_officer_id)) &&
           (!status || a.status === status) &&
           (!product || a.requested_terms.product_id === product) &&
           (!risk || a.risk?.risk_level === risk) &&
-          `${a.id} ${a.company.legal_name} ${a.company.inn}`
+          `${a.id} ${a.company.legal_name} ${a.company.inn} ${productName(a.requested_terms.product_id)}`
             .toLowerCase()
             .includes(search.toLowerCase()),
       )
@@ -143,6 +155,19 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
               data={products.map((p) => ({ value: p.id, label: p.name }))}
             />
           )}
+          {bank && (
+            <Select
+              aria-label="Ответственный"
+              placeholder="Все назначения"
+              clearable
+              value={assignment}
+              onChange={setAssignment}
+              data={[
+                { value: "mine", label: "Назначено мне" },
+                { value: "free", label: "Не назначено" },
+              ]}
+            />
+          )}
         </div>
         <QueryState query={q}>
           {list.length ? (
@@ -151,9 +176,10 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                 <thead>
                   <tr>
                     <th>{bank ? "Компания / заявка" : "Заявка / продукт"}</th>
-                    <th>Сумма / срок</th>
+                    <th className="numeric-cell">Сумма / срок</th>
                     <th>Статус</th>
                     {bank && <th>Риск</th>}
+                    {bank && <th>Ответственный</th>}
                     <th>
                       <button
                         className="sort-button"
@@ -166,7 +192,7 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((a) => (
+                  {list.slice((page - 1) * 20, page * 20).map((a) => (
                     <tr key={a.id}>
                       <td data-label="Заявка">
                         <Link
@@ -181,7 +207,7 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                             : productName(a.requested_terms.product_id)}
                         </small>
                       </td>
-                      <td data-label="Сумма">
+                      <td data-label="Сумма" className="numeric-cell">
                         <strong>{money(a.requested_terms.amount)}</strong>
                         <small>{a.requested_terms.term_months} мес.</small>
                       </td>
@@ -193,6 +219,19 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                           <span className={`risk risk-${a.risk?.risk_level}`}>
                             {a.risk?.risk_level || "Нет оценки"}
                           </span>
+                        </td>
+                      )}
+                      {bank && (
+                        <td data-label="Ответственный">
+                          {a.assigned_officer_id
+                            ? identity.user(a.assigned_officer_id)
+                                ?.displayName ||
+                              (a.assigned_officer_id === "banker"
+                                ? "Сотрудник банка"
+                                : a.assigned_officer_id === "banker_two"
+                                  ? "Второй сотрудник"
+                                  : a.assigned_officer_id)
+                            : "Не назначен"}
                         </td>
                       )}
                       <td data-label="Обновлена">{date(a.updated_at)}</td>
@@ -220,6 +259,7 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
                   setStatus("");
                   setProduct("");
                   setRisk("");
+                  setAssignment(null);
                 }}
               >
                 Сбросить фильтры
@@ -228,6 +268,14 @@ export function ApplicationList({ bank = false }: { bank?: boolean }) {
           )}
           <div className="table-footer">
             Показано {list.length} из {q.data?.length || 0} заявок
+            {list.length > 20 && (
+              <Pagination
+                aria-label="Страницы заявок"
+                total={Math.ceil(list.length / 20)}
+                value={page}
+                onChange={setPage}
+              />
+            )}
           </div>
         </QueryState>
       </Panel>

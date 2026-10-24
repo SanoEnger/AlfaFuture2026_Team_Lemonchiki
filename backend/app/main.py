@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
+from .api.frontend import router as frontend_router
 from .errors import install_error_handlers
 
 app = FastAPI(
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 install_error_handlers(app)
 app.include_router(router)
+app.include_router(frontend_router)
 
 
 @app.get('/health', tags=['system'])

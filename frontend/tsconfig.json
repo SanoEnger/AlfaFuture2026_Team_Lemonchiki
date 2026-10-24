@@ -14,12 +14,14 @@
     "types": ["vite/client"]
   },
   "include": [
+    "src",
     "app",
     "components",
     "features",
     "shared",
     "tests",
     "vite.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.api.config.ts"
   ]
 }

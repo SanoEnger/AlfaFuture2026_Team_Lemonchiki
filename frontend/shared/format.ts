@@ -3,14 +3,17 @@ export const money = (value: string | number) =>
   new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: "RUB",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(Number(value));
 export const date = (value: string) =>
-  new Date(value).toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  !value || Number.isNaN(Date.parse(value))
+    ? "Дата не указана"
+    : new Date(value).toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
 export const shortId = (id: string) =>
   id.startsWith("SC-") ? id.slice(3) : id.slice(0, 8).toUpperCase();
 export const statuses: Record<Status, string> = {

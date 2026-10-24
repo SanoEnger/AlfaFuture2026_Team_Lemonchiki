@@ -1,5 +1,7 @@
 ﻿import { useEffect, useState, type CSSProperties } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { data as demo } from "../../shared/api/data";
 import {
   ActionIcon,
   Button,
@@ -13,6 +15,7 @@ import { Assistant } from "../../features/assistant/Assistant";
 import { ExpandableSidebar } from "./ExpandableSidebar";
 import {
   bankNavigation,
+  adminNavigation,
   clientNavigation,
   isSidebarItemActive,
 } from "./sidebarNavigation";
@@ -26,13 +29,29 @@ export function AppShell() {
   const scheme = useComputedColorScheme("dark");
   const mobileScreen = useMediaQuery("(max-width: 768px)");
   const touchScreen = useMediaQuery("(hover: none), (pointer: coarse)");
+  const canExpandAssistant = useMediaQuery("(min-width: 1440px)");
   const [mobile, setMobile] = useState(false);
   const [assistant, setAssistant] = useState(false);
+  const [assistantExpanded, setAssistantExpanded] = useState(false);
   const [pinned, setPinned] = useState(
     () => localStorage.getItem(pinKey) === "true",
   );
-  const bank = session?.role === "BANK_EMPLOYEE";
-  const links = bank ? bankNavigation : clientNavigation;
+  const bank = session?.role !== "CLIENT";
+  const company = useQuery({
+    queryKey: ["company", session?.username],
+    queryFn: () => demo.company(session!.username),
+    enabled: !!session && !bank && session.onboardingComplete !== false,
+  });
+  useEffect(() => {
+    document.documentElement.dataset.density =
+      localStorage.getItem("smart-density") ||
+      (bank ? "compact" : "comfortable");
+  }, [bank]);
+  const links = bank
+    ? session?.role === "BANK_ADMIN"
+      ? adminNavigation
+      : bankNavigation
+    : clientNavigation;
   const active = links.find((item) => isSidebarItemActive(item, location));
   const effectivePinned = pinned && !touchScreen;
   const sidebarSpace = mobileScreen ? 0 : effectivePinned ? 224 : 68;
@@ -48,18 +67,27 @@ export function AppShell() {
   return (
     <div
       className={`app-shell${assistant ? " assistant-open" : ""}`}
-      style={{ "--sidebar-space": `${sidebarSpace}px` } as CSSProperties}
+      style={
+        {
+          "--sidebar-space": `${sidebarSpace}px`,
+          "--assistant-width": `${assistantExpanded && canExpandAssistant ? 580 : 420}px`,
+        } as CSSProperties
+      }
     >
       <ExpandableSidebar
         items={links}
         profile={{
           bank,
-          name: bank ? "Сотрудник банка" : "Александр",
+          name:
+            session?.displayName ||
+            (bank
+              ? session?.role === "BANK_ADMIN"
+                ? "Администратор"
+                : "Сотрудник банка"
+              : "Александр"),
           company: bank
             ? "Кредитный отдел"
-            : session?.username === "client_risky"
-              ? "ИП Сервис"
-              : "ООО «Вектор»",
+            : company.data?.legal_name || "Моя компания",
         }}
         pinned={effectivePinned}
         onPinnedChange={pin}
@@ -86,7 +114,9 @@ export function AppShell() {
             {bank ? "Банк" : "Кабинет"} / {active?.label || "Заявка"}
           </span>
           <div className="topbar-actions">
-            <span className="demo-label">Демо-режим</span>
+            <span className="demo-label">
+              {session?.mode === "api" ? "Демо API · сервер" : "Демо-режим"}
+            </span>
             <Button
               className="theme-button"
               aria-label="Переключить цветовую тему"
@@ -103,10 +133,11 @@ export function AppShell() {
             {!bank && (
               <Button
                 variant="light"
+                aria-label="Открыть помощника"
                 leftSection={<Sparkles size={15} />}
                 onClick={() => setAssistant(true)}
               >
-                AI
+                Помощник
               </Button>
             )}
           </div>
@@ -127,10 +158,15 @@ export function AppShell() {
               leftSection={<Sparkles size={18} />}
               onClick={() => setAssistant(true)}
             >
-              AI-помощник
+              Помощник
             </Button>
           )}
-          <Assistant opened={assistant} onClose={() => setAssistant(false)} />
+          <Assistant
+            opened={assistant}
+            onClose={() => setAssistant(false)}
+            expanded={assistantExpanded}
+            onExpandedChange={setAssistantExpanded}
+          />
         </>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
 async function login(page: Page, bank = false) {
-  await page.goto("/login");
+  await page.goto("/demo-login");
   if (bank) {
     await page.getByRole("textbox", { name: "Демо-сценарий" }).click();
     await page
@@ -184,7 +184,7 @@ test("1440, 1280, 768 и 390: адаптивность, AI и сводка ма�
         }
       }
       await page
-        .getByRole("button", { name: "Объяснить условия через AI-помощника" })
+        .getByRole("button", { name: "Объяснить условия", exact: true })
         .click();
       const drawer = page.locator(".credit-assistant .mantine-Drawer-content");
       await expect(drawer).toBeVisible();
@@ -203,18 +203,18 @@ test("1440, 1280, 768 и 390: адаптивность, AI и сводка ма�
       } else if (width <= 768) expect(Math.round(drawerBox!.width)).toBe(width);
       await page
         .getByRole("button", {
-          name: "Чем предложение отличается от запроса?",
+          name: "Сравнить условия",
           exact: true,
         })
         .click();
-      await expect(page.locator(".messages .message").last()).toContainText(
+      await expect(page.locator(".credit-ai__response").last()).toContainText(
         "Запрошенные сумма и срок",
       );
       await page.screenshot({
         path: `test-results/${value}-assistant-${width}.png`,
         fullPage: true,
       });
-      await drawer.locator(".mantine-Drawer-close").click();
+      await drawer.getByRole("button", { name: "Закрыть помощника" }).click();
       await expect(drawer).not.toBeVisible();
     }
   }
